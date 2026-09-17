@@ -41,7 +41,7 @@ void taskManagerInit(void) {
     gSensorReady = (lStatus == ADS1292R_OK);
     if (gSensorReady) {
         (void)systemSetMode(E_SYSTEM_NORMAL_MODE);
-        LOG_I("ads1292r", "ID=0x73, 500 SPS, gain=6, ECG capture started");
+        LOG_I("ads1292r", "500 SPS, gain=6, ECG capture started");
     } else {
         (void)systemSetMode(E_SYSTEM_FAULT_MODE);
         LOG_E("ads1292r", "init/start failed status=%d; console remains available", (int)lStatus);

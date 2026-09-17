@@ -32,6 +32,7 @@ extern "C" {
 #define ADS1292R_DRDY_PORT          GPIOB
 #define ADS1292R_DRDY_PIN           GPIO_PIN_15
 #define ADS1292R_DEVICE_ID          0x73U
+#define ADS1292_DEVICE_ID           0x53U
 #define ADS1292R_REGISTER_COUNT     12U
 #define ADS1292R_FRAME_BYTES        9U
 #define ADS1292R_REG_ID             0x00U

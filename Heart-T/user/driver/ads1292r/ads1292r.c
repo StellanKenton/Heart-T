@@ -10,6 +10,7 @@
 #include "ads1292r.h"
 #include "drvspi.h"
 #include "system.h"
+#include "log.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -151,8 +152,18 @@ int8_t ads1292rInit(const stAds1292rConfig *config) {
     if (lStatus != ADS1292R_OK) {
         goto fail;
     }
-    if (lId != ADS1292R_DEVICE_ID) {
+    LOG_I("ads1292r", "probe ID=0x%02X", (unsigned)lId);
+    if ((lId != ADS1292R_DEVICE_ID) && (lId != ADS1292_DEVICE_ID)) {
+        LOG_E("ads1292r", "invalid ID; check SPI/power/CLKSEL; DRDY=%u START=%u PWDN=%u",
+              (unsigned)HAL_GPIO_ReadPin(ADS1292R_DRDY_PORT, ADS1292R_DRDY_PIN),
+              (unsigned)HAL_GPIO_ReadPin(ADS1292R_START_PORT, ADS1292R_START_PIN),
+              (unsigned)HAL_GPIO_ReadPin(ADS1292R_PWDN_PORT, ADS1292R_PWDN_PIN));
         lStatus = ADS1292R_ERROR_ID;
+        goto fail;
+    }
+    if (config->respiration && (lId != ADS1292R_DEVICE_ID)) {
+        LOG_E("ads1292r", "respiration requires ADS1292R");
+        lStatus = ADS1292R_ERROR_PARAM;
         goto fail;
     }
     lRegs[0] = (uint8_t)config->rate;
@@ -181,6 +192,9 @@ int8_t ads1292rInit(const stAds1292rConfig *config) {
         /* Lead-off and GPIO input levels are live, not writable storage. */
         lMask = (lIndex == 7U) ? 0x40U : ((lIndex == 10U) ? 0x0CU : 0xFFU);
         if ((lReadback[lIndex] & lMask) != (lRegs[lIndex] & lMask)) {
+            LOG_E("ads1292r", "reg=0x%02X expected=0x%02X actual=0x%02X mask=0x%02X",
+                  (unsigned)(lIndex + 1U), (unsigned)lRegs[lIndex],
+                  (unsigned)lReadback[lIndex], (unsigned)lMask);
             lStatus = ADS1292R_ERROR_VERIFY;
             goto fail;
         }
@@ -190,6 +204,7 @@ int8_t ads1292rInit(const stAds1292rConfig *config) {
         goto fail;
     }
     gInitialized = true;
+    LOG_I("ads1292r", "register readback verified; reference settled");
     return ADS1292R_OK;
 
 fail:
