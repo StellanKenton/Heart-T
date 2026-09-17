@@ -45,7 +45,6 @@ void MX_USB_PCD_Init(void)
   hpcd_USB_FS.Init.Sof_enable = DISABLE;
   hpcd_USB_FS.Init.low_power_enable = DISABLE;
   hpcd_USB_FS.Init.lpm_enable = DISABLE;
-  hpcd_USB_FS.Init.battery_charging_enable = DISABLE;
   if (HAL_PCD_Init(&hpcd_USB_FS) != HAL_OK)
   {
     Error_Handler();
@@ -69,11 +68,18 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
   /** Initializes the peripherals clocks
   */
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
-    PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
+    PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
     {
       Error_Handler();
     }
+
+    GPIO_InitTypeDef lGpio = {0};
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    lGpio.Pin = GPIO_PIN_11 | GPIO_PIN_12;
+    lGpio.Mode = GPIO_MODE_INPUT;
+    lGpio.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &lGpio);
 
     /* USB clock enable */
     __HAL_RCC_USB_CLK_ENABLE();
@@ -102,4 +108,3 @@ void HAL_PCD_MspDeInit(PCD_HandleTypeDef* pcdHandle)
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
-

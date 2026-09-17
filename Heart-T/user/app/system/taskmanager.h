@@ -1,7 +1,7 @@
 /************************************************************************************
 * @file     : taskmanager.h
 * @brief    : Bare-metal periodic function scheduler.
-* @details  : Periods are milliseconds from the TIM6 clock.
+* @details  : Periods are milliseconds from the TIM2 clock.
 * @author   :
 * @date     : 2026-09-17
 * @version  : 2.0

@@ -1,14 +1,14 @@
 /************************************************************************************
 * @file     : system.c
 * @brief    : HeartThird system state and firmware information.
-* @details  : Uses the TIM6-backed HAL millisecond clock.
+* @details  : Uses the TIM2-backed HAL millisecond clock.
 * @author   :
 * @date     :
 * @version  :
 * @copyright: Copyright (c) 2050
 ***********************************************************************************/
 #include "system.h"
-#include "stm32g4xx_hal.h"
+#include "stm32f1xx_hal.h"
 
 static eSystemMode gSystemMode = E_SYSTEM_INIT_MODE;
 
@@ -48,7 +48,7 @@ const char *systemGetModeString(eSystemMode mode) {
     }
 }
 
-/** @brief Read the TIM6 uptime in milliseconds. */
+/** @brief Read the TIM2 uptime in milliseconds. */
 uint32_t systemGetTickMs(void) {
     return HAL_GetTick();
 }

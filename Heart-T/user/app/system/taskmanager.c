@@ -1,7 +1,7 @@
 /************************************************************************************
 * @file     : taskmanager.c
 * @brief    : Bare-metal sensor, communication, algorithm and background functions.
-* @details  : TIM6 deadlines dispatch cooperative main-loop work.
+* @details  : TIM2 deadlines dispatch cooperative main-loop work.
 * @author   :
 * @date     : 2026-09-17
 * @version  : 2.0

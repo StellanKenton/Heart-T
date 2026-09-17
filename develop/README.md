@@ -49,7 +49,7 @@ The Windows `computer2` profile matches `WorkStation` and uses:
 - Ninja: `C:/msys64/mingw64/bin/ninja.exe`
 - GCC: `C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin`
 - J-Link: `C:/Program Files/SEGGER/JLink_V918`
-- Target: `STM32G431C6`, SWD, 4000 kHz
+- Target: `STM32F103C8`, SWD, 4000 kHz
 
 Edit the profile when tool locations change. Add a profile for another machine,
 or explicitly select one with `--computer computer2` after the quick-deploy action.

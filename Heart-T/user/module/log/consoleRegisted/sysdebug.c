@@ -10,7 +10,7 @@
 #include "sysdebug.h"
 
 #include "console.h"
-#include "stm32g4xx.h"
+#include "stm32f1xx.h"
 #include "log.h"
 #include "system.h"
 
@@ -25,7 +25,7 @@ static eConsoleCommandResult sysdebugConsoleReboot(const char *arguments) {
     return CONSOLE_COMMAND_RESULT_OK;
 }
 
-/** @brief Report uptime using the TIM6 millisecond clock. */
+/** @brief Report uptime using the TIM2 millisecond clock. */
 static eConsoleCommandResult sysdebugConsoleTime(const char *arguments) {
     if (arguments[0] != '\0') {
         return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;

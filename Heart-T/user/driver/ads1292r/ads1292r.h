@@ -12,7 +12,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "stm32g4xx_hal.h"
+#include "stm32f1xx_hal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,11 +26,11 @@ extern "C" {
 #define ADS1292R_ERROR_NOT_READY    (-24)
 #define ADS1292R_ERROR_FRAME        (-25)
 #define ADS1292R_START_PORT         GPIOB
-#define ADS1292R_START_PIN          GPIO_PIN_13
+#define ADS1292R_START_PIN          GPIO_PIN_11
 #define ADS1292R_PWDN_PORT          GPIOB
-#define ADS1292R_PWDN_PIN           GPIO_PIN_14
-#define ADS1292R_DRDY_PORT          GPIOB
-#define ADS1292R_DRDY_PIN           GPIO_PIN_15
+#define ADS1292R_PWDN_PIN           GPIO_PIN_10
+#define ADS1292R_DRDY_PORT          GPIOA
+#define ADS1292R_DRDY_PIN           GPIO_PIN_8
 #define ADS1292R_DEVICE_ID          0x73U
 #define ADS1292_DEVICE_ID           0x53U
 #define ADS1292R_REGISTER_COUNT     12U

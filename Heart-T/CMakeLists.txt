@@ -37,7 +37,7 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
-# SPI transactions also retain HAL DMA/GPIO helpers; fit the HAL in 32 KB Flash.
+# SPI transactions also retain HAL DMA/GPIO helpers; fit the HAL in 64 KB Flash.
 target_compile_options(STM32_Drivers PRIVATE -Os)
 
 # Link directories setup
@@ -61,7 +61,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add include paths
-# Keep diagnostics and task assembly compact for the 32 KB Flash target, including Debug.
+# Keep diagnostics and task assembly compact for the 64 KB Flash target, including Debug.
 set_source_files_properties(
     user/driver/drvspi/drvspi.c
     user/driver/ads1292r/ads1292r.c

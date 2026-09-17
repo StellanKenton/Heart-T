@@ -23,7 +23,7 @@
       },
       "flash_image": "Heart-T/build/Debug/Heart-T.elf",
       "jlink": {
-        "device": "STM32G431C6",
+        "device": "STM32F103C8",
         "interface": "swd",
         "speed_khz": 4000,
         "serial_number": null,
@@ -59,7 +59,7 @@
       },
       "flash_image": "Heart-T/build/Debug/Heart-T.elf",
       "jlink": {
-        "device": "STM32G431C6",
+        "device": "STM32F103C8",
         "interface": "swd",
         "speed_khz": 4000,
         "serial_number": null,

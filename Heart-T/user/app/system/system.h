@@ -1,7 +1,7 @@
 /************************************************************************************
 * @file     : system.h
 * @brief    : HeartThird system state and firmware information.
-* @details  : TIM6 provides the 1 ms clock for the bare-metal main loop.
+* @details  : TIM2 provides the 1 ms clock for the bare-metal main loop.
 * @author   :
 * @date     :
 * @version  :
