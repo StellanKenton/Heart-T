@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "taskmanager.h"
+#include "drvusb.h"
 #include "log.h"
 #if LOG_CONSOLE_ENABLE
 #include "console.h"
@@ -97,6 +98,9 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_SPI2_Init();
+  /* USER CODE BEGIN USB_Disconnect */
+  drvUsbDisconnect();
+  /* USER CODE END USB_Disconnect */
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
   if (!logInit()) {

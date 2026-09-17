@@ -1,0 +1,111 @@
+{
+  "initial_echo_pass": true,
+  "reset_cycles": [
+    {
+      "cycle": 1,
+      "port": "COM25",
+      "serial": "066CFF565671485067163138",
+      "reopen_after_reset_command_seconds": 0.445,
+      "elapsed_seconds": 4.271,
+      "enumeration_events": [
+        {
+          "seconds": 0.005,
+          "ports": [
+            "COM25"
+          ]
+        },
+        {
+          "seconds": 2.45,
+          "ports": []
+        },
+        {
+          "seconds": 2.781,
+          "ports": [
+            "COM25"
+          ]
+        }
+      ],
+      "old_handle": "WriteFile failed (PermissionError(13, 'The device does not recognize the command.', None, 22))",
+      "echo_pass_lengths": [
+        4,
+        63,
+        64,
+        65,
+        128,
+        256,
+        1024
+      ]
+    },
+    {
+      "cycle": 2,
+      "port": "COM25",
+      "serial": "066CFF565671485067163138",
+      "reopen_after_reset_command_seconds": 0.446,
+      "elapsed_seconds": 3.815,
+      "enumeration_events": [
+        {
+          "seconds": 0.004,
+          "ports": [
+            "COM25"
+          ]
+        },
+        {
+          "seconds": 1.998,
+          "ports": []
+        },
+        {
+          "seconds": 2.322,
+          "ports": [
+            "COM25"
+          ]
+        }
+      ],
+      "old_handle": "WriteFile failed (PermissionError(13, 'The device does not recognize the command.', None, 22))",
+      "echo_pass_lengths": [
+        4,
+        63,
+        64,
+        65,
+        128,
+        256,
+        1024
+      ]
+    },
+    {
+      "cycle": 3,
+      "port": "COM25",
+      "serial": "066CFF565671485067163138",
+      "reopen_after_reset_command_seconds": 0.446,
+      "elapsed_seconds": 3.817,
+      "enumeration_events": [
+        {
+          "seconds": 0.004,
+          "ports": [
+            "COM25"
+          ]
+        },
+        {
+          "seconds": 1.993,
+          "ports": []
+        },
+        {
+          "seconds": 2.326,
+          "ports": [
+            "COM25"
+          ]
+        }
+      ],
+      "old_handle": "WriteFile failed (PermissionError(13, 'The device does not recognize the command.', None, 22))",
+      "echo_pass_lengths": [
+        4,
+        63,
+        64,
+        65,
+        128,
+        256,
+        1024
+      ]
+    }
+  ],
+  "all_pass": true
+}

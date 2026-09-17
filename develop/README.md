@@ -54,3 +54,7 @@ The Windows `computer2` profile matches `WorkStation` and uses:
 Edit the profile when tool locations change. Add a profile for another machine,
 or explicitly select one with `--computer computer2` after the quick-deploy action.
 The macOS profile retains its own tool locations and has not been validated on this Windows host.
+
+## USB reset self-test
+
+`usb_selftest_result.json` records the Windows USB CDC hardware test: before reset and after three Device Tool resets, COM25 was reopened and binary echo passed. The monitor recorded COM25 disappearing and reappearing on each reset. Existing serial handles must be closed and reopened after USB disconnect.

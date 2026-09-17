@@ -17,6 +17,9 @@ extern "C" {
 #define DRV_USB_ERROR_STATE    (-10)
 #define DRV_USB_ERROR_TRANSFER (-11)
 #define DRV_USB_PACKET_SIZE    64U
+#define DRV_USB_DISCONNECT_MS  100U
+/* Startup only, before MX_USB_PCD_Init enables the USB peripheral. */
+void drvUsbDisconnect(void);
 /* Main-loop only, once after MX_USB_PCD_Init. */
 int8_t drvUsbInit(void);
 /* Main-loop only: echo at most one packet; disconnected/busy is normal idle. */

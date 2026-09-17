@@ -147,6 +147,21 @@ static USBD_CDC_ItfTypeDef gCdcInterface = {
     drvUsbCdcInit, drvUsbCdcDeInit, drvUsbCdcControl, drvUsbCdcReceive, NULL
 };
 
+/** @brief Force a host-visible disconnect before USB takes ownership of PA12. */
+void drvUsbDisconnect(void) {
+    GPIO_InitTypeDef lGpio = {0};
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
+    lGpio.Pin = GPIO_PIN_12;
+    lGpio.Mode = GPIO_MODE_OUTPUT_PP;
+    lGpio.Pull = GPIO_NOPULL;
+    lGpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &lGpio);
+    HAL_Delay(DRV_USB_DISCONNECT_MS);
+    lGpio.Mode = GPIO_MODE_INPUT;
+    HAL_GPIO_Init(GPIOA, &lGpio);
+}
+
 /** @brief Register CDC and enable USB interrupts only after device assembly. */
 int8_t drvUsbInit(void) {
     if (gReady || (hpcd_USB_FS.Instance != USB) || (hpcd_USB_FS.State != HAL_PCD_STATE_READY)) {

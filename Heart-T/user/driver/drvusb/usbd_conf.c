@@ -42,17 +42,6 @@ USBD_StatusTypeDef USBD_LL_DeInit(USBD_HandleTypeDef *device) {
 
 /** @brief Forward Start to the HAL peripheral driver. */
 USBD_StatusTypeDef USBD_LL_Start(USBD_HandleTypeDef *device) {
-    GPIO_InitTypeDef lGpio = {0};
-    /* F103 uses an external D+ pull-up; force disconnect for firmware restart. */
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-    lGpio.Pin = GPIO_PIN_12;
-    lGpio.Mode = GPIO_MODE_OUTPUT_PP;
-    lGpio.Pull = GPIO_NOPULL;
-    lGpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOA, &lGpio);
-    HAL_Delay(20U);
-    lGpio.Mode = GPIO_MODE_INPUT;
-    HAL_GPIO_Init(GPIOA, &lGpio);
     return drvUsbHalStatus(HAL_PCD_Start((PCD_HandleTypeDef *)device->pData));
 }
 

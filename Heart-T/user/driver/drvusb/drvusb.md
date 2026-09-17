@@ -17,7 +17,7 @@ port_files:
 
 - STM32F103C8，HSE 8 MHz → PLL 72 MHz → USB 48 MHz。
 - PA11 = USB D−，PA12 = USB D+；板上需要 D+ 到 3.3 V 的外部 1.5 kΩ 上拉。
-- 启动时 PA12 拉低 20 ms 再释放，确保固件复位后主机重新枚举；仅初始化阻塞，周期收发不等待。
+- USB 外设初始化前 PA12 拉低 100 ms 再释放，确保固件复位后主机重新枚举；仅初始化阻塞，周期收发不等待。
 - Full-speed CDC ACM 虚拟串口，产品名 `Heart-T USB CDC`，序列号来自 MCU 96 位 UID。
 - 开发用途 VID/PID = `0483:5740`（ST CDC 示例值）；产品发布时应替换为获授权的 VID/PID。
 - 波特率设置只存储和回读，不改变 USB 速度；不要求 DTR 才回显。
@@ -26,6 +26,7 @@ port_files:
 
 | API / 回调 | 上下文 | Contract |
 | --- | --- | --- |
+| `drvUsbDisconnect()` | 主循环启动，单次 | `MX_USB_PCD_Init()` 前调用，D+ 拉低 100 ms 后释放 |
 | `drvUsbInit()` | 主循环启动，单次 | `MX_USB_PCD_Init()` 后调用，注册 CDC、启动 PCD、最后启用 USB IRQ |
 | `drvUsbEchoProcess()` | `communicationProcess()`，每 10 ms | 至多提交一包回显，或在发送完成后恢复接收；未配置、挂起和发送忙均正常返回 |
 | CDC Init/DeInit/Control/Receive | USB ISR | 有界且非阻塞；发布接收长度，不在 ISR 中回显 |
@@ -48,4 +49,6 @@ PMA 分配：BTABLE `0x000..0x03F`，EP0 OUT `0x040..0x07F`，EP0 IN `0x080..0x0
 通过 Device Tool Build 编译。烧录后将板载 USB 数据口连接电脑，打开新出现的 CDC 串口并关闭串口工具的本地回显。
 分别发送文本、`00 FF 0D 0A`、63/64/65/128 字节和连续多包数据，确认接收内容与发送逐字节一致。
 再检查 USB 拔插、固件复位、发送期间挂起/恢复，确认重新枚举及回显恢复。
-仅编译和主机模拟无法证明实际硬件枚举与电气连接，仍需板上验收。
+已在当前 Windows 主机通过 J-Link 连续复位 3 次，观察到 COM25 消失后重新出现，重新打开串口后 4/63/64/65/128/256/1024 字节二进制数据均逐字节回显一致。
+设备断开后原串口句柄失效，电脑软件必须关闭旧句柄并重新打开串口。
+实测记录：仓库根目录 `develop/usb_selftest_result.json`；拔插与系统挂起/恢复仍需分别验收。
