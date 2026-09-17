@@ -1,0 +1,62 @@
+{
+  "commands.workspaceCommands": {
+    "Heart-T Build": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Device Tool: Build",
+      "icon": "tools",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Build",
+        "name": "Heart-T Build",
+        "priority": 420,
+        "tooltip": "Build firmware with develop/device_tool.py in the integrated terminal."
+      }
+    },
+    "Heart-T Flash": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Device Tool: Flash",
+      "icon": "plug",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Flash",
+        "name": "Heart-T Flash",
+        "priority": 419,
+        "tooltip": "Flash the target through J-Link in the integrated terminal."
+      }
+    },
+    "Heart-T Reset": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Device Tool: Reset",
+      "icon": "debug-restart",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Reset",
+        "name": "Heart-T Reset",
+        "priority": 418,
+        "tooltip": "Reset and run the target through J-Link."
+      }
+    },
+    "Heart-T RTT": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Device Tool: RTT",
+      "icon": "terminal",
+      "statusBar": {
+        "alignment": "left",
+        "text": " RTT",
+        "name": "Heart-T RTT",
+        "priority": 417,
+        "tooltip": "Open an interactive J-Link RTT terminal. Keyboard input is forwarded to RTT."
+      }
+    }
+  },
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/Heart-T/build/Debug/compile_commands.json",
+  "C_Cpp.default.compilerPath": "C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc.exe",
+  "C_Cpp.default.intelliSenseMode": "windows-gcc-arm",
+  "cmake.sourceDirectory": "${workspaceFolder}/Heart-T",
+  "cmake.configureOnOpen": false,
+  "cmake.cmakePath": "C:/Program Files/CMake/bin/cmake.exe",
+  "cmake.configureSettings": {
+    "ARM_GNU_TOOLCHAIN_BIN_DIR": "C:/Program Files (x86)/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin",
+    "CMAKE_MAKE_PROGRAM": "C:/msys64/mingw64/bin/ninja.exe"
+  }
+}
