@@ -47,6 +47,12 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    user/driver/drvusb/drvusb.c
+    user/driver/drvusb/usbd_conf.c
+    Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
+    Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c
+    Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c
+    Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
     user/driver/drvspi/drvspi.c
     user/driver/ads1292r/ads1292r.c
     user/app/system/system.c
@@ -63,6 +69,12 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 # Keep diagnostics and task assembly compact for the 64 KB Flash target, including Debug.
 set_source_files_properties(
+    user/driver/drvusb/drvusb.c
+    user/driver/drvusb/usbd_conf.c
+    Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
+    Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c
+    Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c
+    Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
     user/driver/drvspi/drvspi.c
     user/driver/ads1292r/ads1292r.c
     user/app/system/system.c
@@ -77,6 +89,9 @@ set_source_files_properties(
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    user/driver/drvusb
+    Middlewares/ST/STM32_USB_Device_Library/Core/Inc
+    Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc
     user/driver/drvspi
     user/driver/ads1292r
     user/app/system

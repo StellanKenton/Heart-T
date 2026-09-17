@@ -11,10 +11,13 @@
 #include "system.h"
 #include "log.h"
 #include "ads1292r.h"
+#include "drvusb.h"
 #include <stdbool.h>
 #include <stddef.h>
 
 static bool gSensorReady = false;
+static bool gUsbReady = false;
+static uint32_t gLastUsbErrorMs = 0U;
 static stAds1292rSample gSensorSample;
 static uint32_t gLastReportMs = 0U;
 static uint32_t gLastSampleCount = 0U;
@@ -32,6 +35,14 @@ void taskManagerInit(void) {
     int8_t lStatus;
     uint32_t lNowMs;
     size_t lIndex;
+
+    lStatus = drvUsbInit();
+    gUsbReady = (lStatus == DRV_USB_OK);
+    if (gUsbReady) {
+        LOG_I("usb", "CDC echo ready");
+    } else {
+        LOG_E("usb", "init failed status=%d", (int)lStatus);
+    }
 
     (void)ads1292rLoadDefaultConfig(&lConfig);
     lStatus = ads1292rInit(&lConfig);
@@ -89,7 +100,17 @@ void sensorProcess(void) {
 
 /** @brief Process one communication iteration. */
 void communicationProcess(void) {
-    /* TODO: Process receive/transmit and protocol messages without delay loops. */
+    int8_t lStatus;
+    uint32_t lNowMs;
+    if (!gUsbReady) {
+        return;
+    }
+    lStatus = drvUsbEchoProcess();
+    lNowMs = systemGetTickMs();
+    if ((lStatus != DRV_USB_OK) && ((uint32_t)(lNowMs - gLastUsbErrorMs) >= SENSOR_REPORT_INTERVAL_MS)) {
+        gLastUsbErrorMs = lNowMs;
+        LOG_E("usb", "echo failed status=%d", (int)lStatus);
+    }
 }
 
 /** @brief Process one algorithm iteration using the latest sensor data. */

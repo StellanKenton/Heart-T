@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "ads1292r.h"
+#include "usb.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -205,6 +206,12 @@ void TIM2_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+
+/** @brief Dispatch full-speed USB control and CDC endpoint interrupts. */
+void USB_LP_CAN1_RX0_IRQHandler(void) {
+  HAL_PCD_IRQHandler(&hpcd_USB_FS);
+}
+
 
 /** @brief Dispatch the ADS1292R data-ready falling edge. */
 void EXTI9_5_IRQHandler(void) {
