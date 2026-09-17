@@ -9,25 +9,12 @@
 **********************************************************************************/
 #include "ringbuffer.h"
 #include <string.h>
-#if RING_USE_RTOS
-#include "rtos.h"
-#endif
 
 static const stRingBufferOps *ringBufferGetOps(void);
 
 static const stRingBufferOps *ringBufferGetOps(void)
 {
-#if RING_USE_RTOS
-    static const stRingBufferOps lOps = {
-        .enterCritical = repRtosEnterCritical,
-        .exitCritical = repRtosExitCritical,
-        .memoryBarrier = NULL,
-    };
-
-    return &lOps;
-#else
     return NULL;
-#endif
 }
 
 static void ringBufferEnterCritical(void)

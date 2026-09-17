@@ -21,7 +21,7 @@
 #include "monitorengine.h"
 #include "controldata.h"
 #include "phasecontroller.h"
-#include "rtos.h"
+#include "system.h"
 
 static const char *const gVentTestTag = "venttest";
 static stMonitorWaveformData gVentTestTransientBuffer[VENT_TEST_TRANSIENT_SAMPLE_COUNT];
@@ -104,13 +104,11 @@ static void ventTestSettingsShow(void) {
     stBreathPlan lPlan;
     uint8_t lHost;
     int8_t lStatus;
-    repRtosEnterCritical();
     lPac = *GetVentPacSettings();
     lSettings = *GetVentCpapPsvSettings();
     lStSettings = *GetVentPsvStSettings();
     lHost = GetVentPatientSettings()->useHostSettings;
     lStatus = phaseControllerActivePlanGet(&lPlan);
-    repRtosExitCritical();
     LOG_R("VT_PAC_SETTINGS,peep100=%ld,delta100=%ld,rate100=%ld,ti_ms=%lu,rise_ms=%lu",
           (long)ventTestCenti(lPac.peep), (long)ventTestCenti(lPac.DeltaPressure),
           (long)ventTestCenti(lPac.Rate), (unsigned long)lPac.inspiratoryTimeMs,
@@ -148,8 +146,7 @@ static void ventTestPeepShow(void) {
     float lDisplay;
     float lValid;
 
-    repRtosEnterCritical();
-    lNowMs = repRtosGetTickMs();
+    lNowMs = systemGetTickMs();
     (void)phaseControllerActivePlanGet(&lPlan);
     lPhase = phaseControllerStateGet();
     lReady = phaseControllerExpirationReadyGet();
@@ -157,7 +154,6 @@ static void ventTestPeepShow(void) {
     lDynamic = monitorEngineGet(MONITOR_DYN_PEEP);
     lDisplay = monitorEngineGet(MONITOR_HMI_PEEP);
     lValid = monitorEngineGet(MONITOR_HMI_PEEP_VALID);
-    repRtosExitCritical();
     LOG_R("VT_PEEP,time_ms=%lu,sequence=%lu,mode=%u,phase=%u,ready=%u,pressure100=%ld,dynamic100=%ld,display100=%ld,valid=%u",
           (unsigned long)lNowMs, (unsigned long)lPlan.sequence,
           (unsigned int)lPlan.mode, (unsigned int)lPhase, (unsigned int)lReady,
@@ -178,7 +174,6 @@ static void ventTestStatusShow(void)
     uint16_t lCount;
     uint16_t lIndex;
 
-    repRtosEnterCritical();
     lCurrentCount = gVentTestTransientTotalCount;
     lFirstSequence = gVentTestTransientUploadedCount;
     if ((lCurrentCount - lFirstSequence) > VENT_TEST_TRANSIENT_SAMPLE_COUNT) {
@@ -191,7 +186,6 @@ static void ventTestStatusShow(void)
         gVentTestTransientUpload[lIndex] = gVentTestTransientBuffer[lSequence % VENT_TEST_TRANSIENT_SAMPLE_COUNT];
     }
     gVentTestTransientUploadedCount = lCurrentCount;
-    repRtosExitCritical();
 
     /* Report the applied plan, so a pressure-limited tail is not mistaken for pause. */
     if ((phaseControllerActivePlanGet(&lPlan) == PHASE_CONTROL_SUCCESS) &&

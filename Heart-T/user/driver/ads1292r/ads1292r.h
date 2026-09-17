@@ -1,7 +1,7 @@
 /************************************************************************************
 * @file     : ads1292r.h
 * @brief    : ADS1292R configuration and two-channel sample interface.
-* @details  : Internal 512 kHz clock and 2.42 V reference; single task owner.
+* @details  : Internal 512 kHz clock and 2.42 V reference; single main-loop owner.
 * @author   :
 * @date     : 2026-09-17
 * @version  : 1.0
@@ -81,7 +81,7 @@ typedef struct stAds1292rSample {
     uint32_t status; /* 24 bits: 1100 + LOFF_STAT[4:0] + GPIO[1:0] + 13 zeros. */
     int32_t channel[2]; /* Sign-extended 24-bit ADC codes, not volts. */
     uint32_t sequence; /* DRDY edge counter; gaps indicate missed conversions. */
-    uint32_t tickMs; /* Approximate task read time. */
+    uint32_t tickMs; /* Approximate main-loop read time. */
 } stAds1292rSample;
 
 typedef struct stAds1292rStats {
@@ -90,7 +90,7 @@ typedef struct stAds1292rStats {
     uint32_t missedCount;
 } stAds1292rStats;
 
-/* Mutating and SPI APIs: one task only, after the scheduler starts.
+/* Mutating and SPI APIs: main-loop only, after HAL initialization.
  * Init also powers up, resets, probes ID and verifies configuration; remains stopped. */
 int8_t ads1292rLoadDefaultConfig(stAds1292rConfig *config);
 int8_t ads1292rInit(const stAds1292rConfig *config);
@@ -103,7 +103,7 @@ int8_t ads1292rReadRegisters(uint8_t address, uint8_t *values, uint8_t count);
 int8_t ads1292rWriteRegisters(uint8_t address, const uint8_t *values, uint8_t count);
 /* Nonwaiting DRDY check followed by blocking RDATA transaction, no ISR SPI. */
 int8_t ads1292rReadSample(stAds1292rSample *sample);
-/* Read-only snapshots for any task; latest storage has no sample queue. */
+/* Read-only snapshots for the main loop; latest storage has no sample queue. */
 int8_t ads1292rGetLatest(stAds1292rSample *sample);
 int8_t ads1292rGetStats(stAds1292rStats *stats);
 /* ISR only: called by the PB15 falling-edge EXTI handler. */

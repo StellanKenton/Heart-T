@@ -12,7 +12,6 @@
 #include "console.h"
 #include "stm32g4xx.h"
 #include "log.h"
-#include "rtos.h"
 #include "system.h"
 
 /** @brief Flush the reboot message and reset the HeartThird MCU. */
@@ -22,14 +21,11 @@ static eConsoleCommandResult sysdebugConsoleReboot(const char *arguments) {
     }
     LOG_I("sysdebug", "rebooting HeartThird");
     (void)logFlush();
-    if (repRtosTaskDelayMs(50U) != REP_RTOS_STATUS_OK) {
-        return CONSOLE_COMMAND_RESULT_ERROR;
-    }
     NVIC_SystemReset();
     return CONSOLE_COMMAND_RESULT_OK;
 }
 
-/** @brief Report uptime using the project RTOS clock. */
+/** @brief Report uptime using the TIM6 millisecond clock. */
 static eConsoleCommandResult sysdebugConsoleTime(const char *arguments) {
     if (arguments[0] != '\0') {
         return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
@@ -75,7 +71,7 @@ static const stConsoleCommand gSysdebugConsoleCommands[] = {
     {"status", "Show system mode and uptime", sysdebugConsoleStatus},
 };
 
-/** @brief Bind the static HeartThird descriptors before scheduling starts. */
+/** @brief Bind the static HeartThird descriptors during startup. */
 bool sysdebugConsoleRegister(void) {
     uint32_t lIndex;
 

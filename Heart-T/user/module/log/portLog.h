@@ -13,9 +13,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifndef LOG_USE_RTOS
-#define LOG_USE_RTOS        1
-#endif
 #ifndef LOG_CONSOLE_ENABLE
 #define LOG_CONSOLE_ENABLE  1
 #endif

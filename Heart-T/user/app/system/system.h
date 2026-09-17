@@ -1,7 +1,7 @@
 /************************************************************************************
 * @file     : system.h
 * @brief    : HeartThird system state and firmware information.
-* @details  : All timing uses the project RTOS abstraction.
+* @details  : TIM6 provides the 1 ms clock for the bare-metal main loop.
 * @author   :
 * @date     :
 * @version  :
@@ -16,6 +16,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define SYSTEM_OK                      1
+#define SYSTEM_ERROR_PARAM             (-1)
 
 #define SYSTEM_STRINGIFY_IMPL(value)    #value
 #define SYSTEM_STRINGIFY(value)         SYSTEM_STRINGIFY_IMPL(value)
@@ -37,14 +40,14 @@ typedef enum eSystemMode {
     E_SYSTEM_MODE_MAX,
 } eSystemMode;
 
-/* Initialize before registering tasks. Mode access is task-context only. */
+/* Initialize before services. Mode access is main-loop only. */
 void systemInit(void);
 bool systemIsValidMode(eSystemMode mode);
 eSystemMode systemGetMode(void);
-/* Returns REP_RTOS_STATUS_OK or REP_RTOS_STATUS_INVALID_PARAM. */
+/* Returns SYSTEM_OK or SYSTEM_ERROR_PARAM. */
 int8_t systemSetMode(eSystemMode mode);
 const char *systemGetModeString(eSystemMode mode);
-/* Tick reads support task/ISR context; delay requires a running task. */
+/* Tick reads support main/ISR context; delay is blocking and startup-only. */
 uint32_t systemGetTickMs(void);
 int8_t systemDelayMs(uint32_t delayMs);
 const char *systemGetFirmwareName(void);

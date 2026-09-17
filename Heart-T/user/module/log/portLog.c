@@ -11,42 +11,26 @@
 
 #include <stddef.h>
 
-#if LOG_USE_RTOS
-#include "rtos.h"
-#endif
+#include "system.h"
 
-#if LOG_USE_RTOS
-static const stPortLogOps gPortLogRtosOps = {
-    .getRunTimeMs = repRtosGetTickMs,
+static const stPortLogOps gPortLogDefaultOps = {
+    .getRunTimeMs = systemGetTickMs,
 };
-#else
-static const stPortLogOps *gPortLogBoardOps = {
-    .getRunTimeMs = NULL,
-};
-#endif
+static const stPortLogOps *gPortLogBoardOps = &gPortLogDefaultOps;
 
 bool portLogRegisterOps(const stPortLogOps *ops)
 {
-#if LOG_USE_RTOS
-    (void)ops;
-    return true;
-#else
     if ((ops == NULL) || (ops->getRunTimeMs == NULL)) {
         return false;
     }
 
     gPortLogBoardOps = ops;
     return true;
-#endif
 }
 
 const stPortLogOps *portLogGetOps(void)
 {
-#if LOG_USE_RTOS
-    return &gPortLogRtosOps;
-#else
     return gPortLogBoardOps;
-#endif
 }
 
 uint32_t portLogGetRunTimeMs(void)

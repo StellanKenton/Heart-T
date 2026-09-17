@@ -66,11 +66,11 @@ void logRawWrite(const char *format, ...) __attribute__((format(printf, 1, 2)));
 #endif
 
 
-/* Initialize before scheduler start. Logging supports startup/tasks, not ISR context. */
+/* Initialize during startup. Logging supports the main loop, not ISR context. */
 bool logInit(void);
-/* Flush one output chunk without dispatching input; allowed during startup or in a task. */
+/* Flush one output chunk without dispatching input; allowed during startup or in the main loop. */
 bool logFlush(void);
-/* Called periodically by the background task only. */
+/* Called periodically by backgroundProcess only. */
 bool logProcess(uint16_t TickMs);
 
 #ifdef __cplusplus

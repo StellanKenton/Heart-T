@@ -9,7 +9,7 @@
 ***********************************************************************************/
 #include "ads1292r.h"
 #include "drvspi.h"
-#include "rtos.h"
+#include "system.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -123,25 +123,23 @@ int8_t ads1292rInit(const stAds1292rConfig *config) {
     }
     gAwake = false;
     gInitialized = false;
-    repRtosEnterCritical();
     gLatestValid = false;
-    repRtosExitCritical();
     lStatus = drvSpiInit();
     if (lStatus != DRV_SPI_OK) {
         return lStatus;
     }
     HAL_GPIO_WritePin(ADS1292R_START_PORT, ADS1292R_START_PIN, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(ADS1292R_PWDN_PORT, ADS1292R_PWDN_PIN, GPIO_PIN_SET);
-    lStatus = repRtosTaskDelayMs(ADS1292R_POWER_UP_MS);
-    if (lStatus != REP_RTOS_STATUS_OK) {
+    lStatus = systemDelayMs(ADS1292R_POWER_UP_MS);
+    if (lStatus != SYSTEM_OK) {
         goto fail;
     }
     /* Short reset pulse, not the > 4 ms power-down pulse. */
     HAL_GPIO_WritePin(ADS1292R_PWDN_PORT, ADS1292R_PWDN_PIN, GPIO_PIN_RESET);
     drvSpiDelayUs(100U);
     HAL_GPIO_WritePin(ADS1292R_PWDN_PORT, ADS1292R_PWDN_PIN, GPIO_PIN_SET);
-    lStatus = repRtosTaskDelayMs(2U); /* At least 18 tCLK after reset release. */
-    if (lStatus != REP_RTOS_STATUS_OK) {
+    lStatus = systemDelayMs(2U); /* At least 18 tCLK after reset release. */
+    if (lStatus != SYSTEM_OK) {
         goto fail;
     }
     gAwake = true;
@@ -187,8 +185,8 @@ int8_t ads1292rInit(const stAds1292rConfig *config) {
             goto fail;
         }
     }
-    lStatus = repRtosTaskDelayMs(ADS1292R_REFERENCE_MS);
-    if (lStatus != REP_RTOS_STATUS_OK) {
+    lStatus = systemDelayMs(ADS1292R_REFERENCE_MS);
+    if (lStatus != SYSTEM_OK) {
         goto fail;
     }
     gInitialized = true;
@@ -205,7 +203,6 @@ int8_t ads1292rStart(void) {
     if (!gInitialized || !gAwake || gRunning) {
         return ADS1292R_ERROR_STATE;
     }
-    repRtosEnterCritical();
     __HAL_GPIO_EXTI_CLEAR_IT(ADS1292R_DRDY_PIN);
     gDrdyCount = 0U;
     gLastSequence = 0U;
@@ -214,7 +211,6 @@ int8_t ads1292rStart(void) {
     gLatestValid = false;
     gRunning = true;
     HAL_GPIO_WritePin(ADS1292R_START_PORT, ADS1292R_START_PIN, GPIO_PIN_SET);
-    repRtosExitCritical();
     return ADS1292R_OK;
 }
 
@@ -236,13 +232,11 @@ int8_t ads1292rPowerDown(void) {
     HAL_GPIO_WritePin(ADS1292R_PWDN_PORT, ADS1292R_PWDN_PIN, GPIO_PIN_RESET);
     gAwake = false;
     gInitialized = false;
-    repRtosEnterCritical();
     gLatestValid = false;
-    repRtosExitCritical();
-    return repRtosTaskDelayMs(6U);
+    return systemDelayMs(6U);
 }
 
-/** @brief Record an edge only; acquisition stays in task context. */
+/** @brief Record an edge only; acquisition stays in main-loop context. */
 void ads1292rDrdyIrq(void) {
     if (gRunning) {
         ++gDrdyCount;
@@ -266,7 +260,7 @@ int8_t ads1292rReadSample(stAds1292rSample *sample) {
         return ADS1292R_ERROR_NOT_READY;
     }
     lSample.sequence = gDrdyCount;
-    lSample.tickMs = repRtosGetTickMs();
+    lSample.tickMs = systemGetTickMs();
     lStatus = drvSpiTransfer(lTx, lRx, sizeof(lTx));
     if (lStatus != ADS1292R_OK) {
         return lStatus;
@@ -279,30 +273,26 @@ int8_t ads1292rReadSample(stAds1292rSample *sample) {
     lSample.channel[1] = ads1292rDecode24(&lRx[7]);
     lGap = lSample.sequence - gLastSequence;
     gLastSequence = lSample.sequence;
-    repRtosEnterCritical();
     if (lGap > 1U) {
         gMissedCount += lGap - 1U;
     }
     ++gSampleCount;
     gLatest = lSample;
     gLatestValid = true;
-    repRtosExitCritical();
     *sample = lSample;
     return ADS1292R_OK;
 }
 
-/** @brief Copy the latest successful acquisition from any task. */
+/** @brief Copy the latest successful acquisition from the main loop. */
 int8_t ads1292rGetLatest(stAds1292rSample *sample) {
     int8_t lStatus = ADS1292R_ERROR_NOT_READY;
     if (sample == NULL) {
         return ADS1292R_ERROR_PARAM;
     }
-    repRtosEnterCritical();
     if (gLatestValid) {
         *sample = gLatest;
         lStatus = ADS1292R_OK;
     }
-    repRtosExitCritical();
     return lStatus;
 }
 
@@ -311,11 +301,9 @@ int8_t ads1292rGetStats(stAds1292rStats *stats) {
     if (stats == NULL) {
         return ADS1292R_ERROR_PARAM;
     }
-    repRtosEnterCritical();
     stats->drdyCount = gDrdyCount;
     stats->sampleCount = gSampleCount;
     stats->missedCount = gMissedCount;
-    repRtosExitCritical();
     return ADS1292R_OK;
 }
 

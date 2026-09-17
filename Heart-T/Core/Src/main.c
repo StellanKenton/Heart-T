@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "rtos.h"
+#include "taskmanager.h"
 #include "log.h"
 #if LOG_CONSOLE_ENABLE
 #include "console.h"
@@ -57,7 +57,6 @@
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -116,22 +115,9 @@ int main(void)
   (void)logFlush();
   /* USER CODE END 2 */
 
-  /* Init scheduler */
-  if (repRtosSchedulerInit() != REP_RTOS_STATUS_OK) {
-    LOG_E("main", "scheduler initialization failed");
-    (void)logFlush();
-    Error_Handler();
-  }
-  MX_FREERTOS_Init();
-
-  /* Start scheduler */
-  if (repRtosSchedulerStart() != REP_RTOS_STATUS_OK) {
-    LOG_E("main", "scheduler start failed");
-    (void)logFlush();
-    Error_Handler();
-  }
-
-  /* We should never get here as control is now taken by the scheduler */
+  /* All periodic services run cooperatively in the main loop. */
+  systemInit();
+  taskManagerInit();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -140,6 +126,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    taskManagerProcess();
   }
   /* USER CODE END 3 */
 }

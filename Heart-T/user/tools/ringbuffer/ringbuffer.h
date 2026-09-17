@@ -12,7 +12,6 @@
 
 #include <stdint.h>
 
-#define RING_USE_RTOS 1
 
 #ifdef __cplusplus
 extern "C" {

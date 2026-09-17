@@ -1,48 +1,43 @@
 /************************************************************************************
 * @file     : taskmanager.h
-* @brief    : HeartThird worker task configuration.
-* @details  : Stack sizes are in 32-bit words; larger priorities run first.
+* @brief    : Bare-metal periodic function scheduler.
+* @details  : Periods are milliseconds from the TIM6 clock.
 * @author   :
-* @date     :
-* @version  :
+* @date     : 2026-09-17
+* @version  : 2.0
 * @copyright: Copyright (c) 2050
 ***********************************************************************************/
 #ifndef HEARTTHIRD_TASK_MANAGER_H
 #define HEARTTHIRD_TASK_MANAGER_H
-
 #include <stdint.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+#define SENSOR_INTERVAL_MS          1U
+#define COMMUNICATION_INTERVAL_MS   10U
+#define ALGO_INTERVAL_MS            10U
+#define BACKGROUND_INTERVAL_MS      20U
+#define SENSOR_REPORT_INTERVAL_MS   1000U
 
-/* Initial budgets for task skeletons; measure stack usage when adding work. */
-#define SENSOR_TASK_STACK_SIZE          256U
-#define SENSOR_TASK_PRIORITY            4U
-#define SENSOR_TASK_INTERVAL_MS         1U
+typedef void (*pfPeriodicFunction)(void);
+typedef struct stPeriodicFunction {
+    pfPeriodicFunction process;
+    uint32_t intervalMs;
+    uint32_t lastRunMs;
+} stPeriodicFunction;
 
-#define COMMUNICATION_TASK_STACK_SIZE   128U
-#define COMMUNICATION_TASK_PRIORITY     3U
-#define COMMUNICATION_TASK_INTERVAL_MS  10U
-
-#define ALGO_TASK_STACK_SIZE            128U
-#define ALGO_TASK_PRIORITY              2U
-#define ALGO_TASK_INTERVAL_MS           10U
-
-#define BACKGROUD_TASK_STACK_SIZE       512U
-#define BACKGROUD_TASK_PRIORITY         1U
-#define BACKGROUD_TASK_INTERVAL_MS      20U
-
-/* Call after kernel initialization and before scheduler start, never from ISR.
- * Repeated successful calls are harmless. Failure removes tasks from this attempt.
- * Returns REP_RTOS_STATUS_OK or the task creation error from rtos.h.
- */
-int8_t taskManagerRegister(void);
-
+/* Startup initializes the sensor once; failure leaves the console available. */
+void taskManagerInit(void);
+/* Call continuously from main. Overdue functions run once; missed periods are skipped.
+ * Unsigned time differences handle the millisecond counter wrapping. */
+void taskManagerProcess(void);
+/* Main-loop only: each function performs one bounded iteration and returns. */
+void sensorProcess(void);
+void communicationProcess(void);
+void algoProcess(void);
+void backgroundProcess(void);
 #ifdef __cplusplus
 }
 #endif
-
 #endif /* HEARTTHIRD_TASK_MANAGER_H */
-
 /**************************End of file********************************/

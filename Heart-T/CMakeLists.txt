@@ -49,8 +49,6 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     user/driver/drvspi/drvspi.c
     user/driver/ads1292r/ads1292r.c
-    user/module/rtos/rtos.c
-    user/module/rtos/portrtos.c
     user/app/system/system.c
     user/app/system/taskmanager.c
     user/module/log/log.c
@@ -81,7 +79,6 @@ set_source_files_properties(
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     user/driver/drvspi
     user/driver/ads1292r
-    user/module/rtos
     user/app/system
     user/module/log
     user/module/log/consoleRegisted

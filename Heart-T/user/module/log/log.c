@@ -17,9 +17,6 @@
 #include "console.h"
 #endif
 #include "portLog.h"
-#if LOG_USE_RTOS
-#include "rtos.h"
-#endif
 #include "SEGGER_RTT.h"
 
 static stRingBuffer gLogOutputQueue;
@@ -148,18 +145,12 @@ void logVWrite(eLogLevel level, const char *tag, const char *format, ...) {
         (void)logInit();
     }
 
-#if LOG_USE_RTOS
-    repRtosEnterCritical();
-#endif
     va_start(lArgs, format);
     lWriteLength = logFormatLine(level, tag, format, lArgs);
     va_end(lArgs);
     if (lWriteLength != 0U) {
         (void)SEGGER_RTT_Write(0U, gLogFormatBuffer, (unsigned)lWriteLength);
     }
-#if LOG_USE_RTOS
-    repRtosExitCritical();
-#endif
 }
 
 void logWrite(eLogLevel level, const char *tag, const char *format, ...) {
@@ -170,18 +161,12 @@ void logWrite(eLogLevel level, const char *tag, const char *format, ...) {
         (void)logInit();
     }
 
-#if LOG_USE_RTOS
-    repRtosEnterCritical();
-#endif
     va_start(lArgs, format);
     lWriteLength = logFormatLine(level, tag, format, lArgs);
     va_end(lArgs);
     if (lWriteLength != 0U) {
         (void)ringBufferWriteOverwrite(&gLogOutputQueue, (const uint8_t *)gLogFormatBuffer, lWriteLength);
     }
-#if LOG_USE_RTOS
-    repRtosExitCritical();
-#endif
 }
 
 void logRawWrite(const char *format, ...) {
@@ -195,9 +180,6 @@ void logRawWrite(const char *format, ...) {
         (void)logInit();
     }
 
-#if LOG_USE_RTOS
-    repRtosEnterCritical();
-#endif
     va_start(lArgs, format);
     lWriteLength = vsnprintf(gLogFormatBuffer, lMaxTextLength + 1U, lFormat, lArgs);
     va_end(lArgs);
@@ -210,9 +192,6 @@ void logRawWrite(const char *format, ...) {
         gLogFormatBuffer[lTextLength++] = '\n';
         (void)SEGGER_RTT_Write(0U, gLogFormatBuffer, (unsigned)lTextLength);
     }
-#if LOG_USE_RTOS
-    repRtosExitCritical();
-#endif
 }
 
 /**************************End of file********************************/

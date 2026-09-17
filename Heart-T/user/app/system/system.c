@@ -1,18 +1,18 @@
 /************************************************************************************
 * @file     : system.c
 * @brief    : HeartThird system state and firmware information.
-* @details  : Uses RTOS timing without reconfiguring the MCU SysTick.
+* @details  : Uses the TIM6-backed HAL millisecond clock.
 * @author   :
 * @date     :
 * @version  :
 * @copyright: Copyright (c) 2050
 ***********************************************************************************/
 #include "system.h"
-#include "rtos.h"
+#include "stm32g4xx_hal.h"
 
 static eSystemMode gSystemMode = E_SYSTEM_INIT_MODE;
 
-/** @brief Reset the system state before the scheduler starts. */
+/** @brief Reset the system state during bare-metal startup. */
 void systemInit(void) {
     gSystemMode = E_SYSTEM_INIT_MODE;
 }
@@ -22,26 +22,19 @@ bool systemIsValidMode(eSystemMode mode) {
     return (mode >= E_SYSTEM_INIT_MODE) && (mode < E_SYSTEM_MODE_MAX);
 }
 
-/** @brief Read the shared mode from task context. */
+/** @brief Read the shared mode from main-loop context. */
 eSystemMode systemGetMode(void) {
-    eSystemMode lMode;
-
-    repRtosEnterCritical();
-    lMode = gSystemMode;
-    repRtosExitCritical();
-    return lMode;
+    return gSystemMode;
 }
 
-/** @brief Update the shared mode from task context. */
+/** @brief Update the shared mode from main-loop context. */
 int8_t systemSetMode(eSystemMode mode) {
     if (!systemIsValidMode(mode)) {
-        return REP_RTOS_STATUS_INVALID_PARAM;
+        return SYSTEM_ERROR_PARAM;
     }
 
-    repRtosEnterCritical();
     gSystemMode = mode;
-    repRtosExitCritical();
-    return REP_RTOS_STATUS_OK;
+    return SYSTEM_OK;
 }
 
 /** @brief Return the readable name of a mode. */
@@ -55,14 +48,15 @@ const char *systemGetModeString(eSystemMode mode) {
     }
 }
 
-/** @brief Read the RTOS uptime in milliseconds. */
+/** @brief Read the TIM6 uptime in milliseconds. */
 uint32_t systemGetTickMs(void) {
-    return repRtosGetTickMs();
+    return HAL_GetTick();
 }
 
-/** @brief Block the calling task without busy waiting. */
+/** @brief Wait during startup only; periodic services must not call this delay. */
 int8_t systemDelayMs(uint32_t delayMs) {
-    return repRtosTaskDelayMs(delayMs);
+    HAL_Delay(delayMs);
+    return SYSTEM_OK;
 }
 
 /** @brief Return the HeartThird firmware name. */
