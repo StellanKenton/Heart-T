@@ -37,6 +37,9 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+# SPI transactions also retain HAL DMA/GPIO helpers; fit the HAL in 32 KB Flash.
+target_compile_options(STM32_Drivers PRIVATE -Os)
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
@@ -44,12 +47,46 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
+    user/driver/drvspi/drvspi.c
+    user/driver/ads1292r/ads1292r.c
+    user/module/rtos/rtos.c
+    user/module/rtos/portrtos.c
+    user/app/system/system.c
+    user/app/system/taskmanager.c
+    user/module/log/log.c
+    user/module/log/portLog.c
+    user/module/log/console.c
+    user/module/log/consoleRegisted/sysdebug.c
+    user/module/log/SEGGER/SEGGER_RTT.c
+    user/module/log/SEGGER/SEGGER_RTT_ASM_ARMv7M.S
+    user/tools/ringbuffer/ringbuffer.c
 )
 
 # Add include paths
+# Keep diagnostics and task assembly compact for the 32 KB Flash target, including Debug.
+set_source_files_properties(
+    user/driver/drvspi/drvspi.c
+    user/driver/ads1292r/ads1292r.c
+    user/app/system/system.c
+    user/app/system/taskmanager.c
+    user/module/log/log.c
+    user/module/log/portLog.c
+    user/module/log/console.c
+    user/module/log/consoleRegisted/sysdebug.c
+    user/module/log/SEGGER/SEGGER_RTT.c
+    user/tools/ringbuffer/ringbuffer.c
+    PROPERTIES COMPILE_OPTIONS "-Os"
+)
+
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
+    user/driver/drvspi
+    user/driver/ads1292r
+    user/module/rtos
+    user/app/system
+    user/module/log
+    user/module/log/consoleRegisted
+    user/module/log/SEGGER
+    user/tools/ringbuffer
 )
 
 # Add project symbols (macros)

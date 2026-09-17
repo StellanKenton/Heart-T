@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 #include "dma.h"
 #include "spi.h"
 #include "usb.h"
@@ -26,7 +25,13 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "rtos.h"
+#include "log.h"
+#if LOG_CONSOLE_ENABLE
+#include "console.h"
+#include "sysdebug.h"
+#endif
+#include "system.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -95,15 +100,36 @@ int main(void)
   MX_SPI1_Init();
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
-
+  if (!logInit()) {
+    Error_Handler();
+  }
+#if LOG_CONSOLE_ENABLE
+  consoleInit();
+  if (!sysdebugConsoleRegister()) {
+    LOG_E("main", "console registration failed");
+    (void)logFlush();
+    Error_Handler();
+  }
+#endif
+  LOG_I("main", "%s firmware=%s hardware=%s boot", systemGetFirmwareName(),
+        systemGetFirmwareVersion(), systemGetHardwareVersion());
+  (void)logFlush();
   /* USER CODE END 2 */
 
   /* Init scheduler */
-  osKernelInitialize();  /* Call init function for freertos objects (in cmsis_os2.c) */
+  if (repRtosSchedulerInit() != REP_RTOS_STATUS_OK) {
+    LOG_E("main", "scheduler initialization failed");
+    (void)logFlush();
+    Error_Handler();
+  }
   MX_FREERTOS_Init();
 
   /* Start scheduler */
-  osKernelStart();
+  if (repRtosSchedulerStart() != REP_RTOS_STATUS_OK) {
+    LOG_E("main", "scheduler start failed");
+    (void)logFlush();
+    Error_Handler();
+  }
 
   /* We should never get here as control is now taken by the scheduler */
 

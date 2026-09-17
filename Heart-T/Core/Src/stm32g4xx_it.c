@@ -22,6 +22,7 @@
 #include "stm32g4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "ads1292r.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -204,5 +205,17 @@ void TIM6_DAC_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+
+/** @brief Dispatch the ADS1292R data-ready falling edge. */
+void EXTI15_10_IRQHandler(void) {
+  HAL_GPIO_EXTI_IRQHandler(ADS1292R_DRDY_PIN);
+}
+
+/** @brief Keep the DRDY interrupt bounded and nonblocking. */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+  if (GPIO_Pin == ADS1292R_DRDY_PIN) {
+    ads1292rDrdyIrq();
+  }
+}
 
 /* USER CODE END 1 */
