@@ -1,9 +1,10 @@
 ## Session Start
 
 Every new session must begin by reading this [AGENTS.md](AGENTS.md), then immediately read the [rule.md](net/user/rule/rule.md) in the current directory
-D:\Space\Work\vent-net\net\user\rule\rule.md
 
 当前项目的编译、烧录、复位和 RTT 日志查看，默认使用 VS Code 下方的 Device Tool 按钮或同名任务，不要绕过这套入口。
+D:\Space\Cosmos\Heart-T\Heart-T 是采集的下位机
+D:\Space\Cosmos\Heart-T\HeartThirdCore 是分析用的上位机程序
 
 Device Tool 脚本入口位于 `develop/`：
 

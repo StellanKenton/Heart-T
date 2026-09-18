@@ -7,48 +7,52 @@ port_files:
 
 | 文件 | 职责 |
 | --- | --- |
-| `drvusb.c/.h` | CDC 描述符、静态类存储、单包收发与回显 |
-| `usbd_conf.c/.h` | STM32 HAL/PCD 绑定、PMA 分配、USB ISR 回调、协议栈配置 |
+| `drvusb.c/.h` | CDC 描述符、静态存储、采样对环形缓冲、异步数据帧发送 |
+| `usbd_conf.c/.h` | STM32 HAL/PCD 绑定、PMA 分配、USB ISR 回调和配置 |
 
-依赖：CubeMX `Core/Src/usb.c`、STM32F1 HAL、`Middlewares/ST/STM32_USB_Device_Library` 的 Core 和 CDC。
-所有源码直接加入 `Heart-T/CMakeLists.txt`；不依赖 RTOS，不使用堆分配。
+依赖：CubeMX USB PCD、STM32 HAL、ST USB Device Core/CDC；源码直接加入 CMake，不使用堆或 RTOS。
+硬件：STM32F103C8，HSE 8 MHz → PLL 72 MHz → USB 48 MHz，PA11/PA12 为 D−/D+，D+ 需要外部 1.5 kΩ 上拉。
+初始化前 D+ 拉低 100 ms 触发重新枚举；Full-speed CDC，VID/PID 为开发用 0483:5740。
+波特率仅保存和回读，不控制 USB 速度；DTR 不作为发送条件。
 
-## 硬件与设备
+## 协议
 
-- STM32F103C8，HSE 8 MHz → PLL 72 MHz → USB 48 MHz。
-- PA11 = USB D−，PA12 = USB D+；板上需要 D+ 到 3.3 V 的外部 1.5 kΩ 上拉。
-- USB 外设初始化前 PA12 拉低 100 ms 再释放，确保固件复位后主机重新枚举；仅初始化阻塞，周期收发不等待。
-- Full-speed CDC ACM 虚拟串口，产品名 `Heart-T USB CDC`，序列号来自 MCU 96 位 UID。
-- 开发用途 VID/PID = `0483:5740`（ST CDC 示例值）；产品发布时应替换为获授权的 VID/PID。
-- 波特率设置只存储和回读，不改变 USB 速度；不要求 DTR 才回显。
+固定 33 字节，二进制、不添加换行：
 
-## API 与上下文
-
-| API / 回调 | 上下文 | Contract |
+| 偏移 | 长度 | 内容 |
 | --- | --- | --- |
-| `drvUsbDisconnect()` | 主循环启动，单次 | `MX_USB_PCD_Init()` 前调用，D+ 拉低 100 ms 后释放 |
-| `drvUsbInit()` | 主循环启动，单次 | `MX_USB_PCD_Init()` 后调用，注册 CDC、启动 PCD、最后启用 USB IRQ |
-| `drvUsbEchoProcess()` | `communicationProcess()`，每 10 ms | 至多提交一包回显，或在发送完成后恢复接收；未配置、挂起和发送忙均正常返回 |
-| CDC Init/DeInit/Control/Receive | USB ISR | 有界且非阻塞；发布接收长度，不在 ISR 中回显 |
-| HAL PCD 回调 | USB ISR | 仅转发设备核心事件 |
+| 0 | 1 | 包头 FA |
+| 1 | 1 | 包序号，0..255 循环 |
+| 2..31 | 30 | 5 个采样时刻，每个时刻 CH1 三字节，随后 CH2 三字节 |
+| 32 | 1 | CRC-8/SMBUS，覆盖偏移 1..31 |
 
-返回值：`DRV_USB_OK` = 1；`DRV_USB_ERROR_STATE` = −10；`DRV_USB_ERROR_TRANSFER` = −11。
+通道值为有符号 24 位二进制补码，最高字节先发送。500 SPS 下每包覆盖 10 ms，正常数据量 3300 B/s。
+CRC 多项式 0x07、初值 0、无反射、结果无异或；标准检查值 `123456789` → F4。
+每采集 5 对生成一个包序号，独立于 USB 是否成功发送；缓冲溢出丢弃完整旧包时，后续序号出现跳变。
+序号不检测 ADS 漏采，漏采查看 RTT 的 missed。序号模 256 有歧义，复位后上位机应重新建立基准。
 
-## 数据所有权
+## API 与所有权
 
-使用一个 64 字节静态缓冲区。OUT 收到包后不重新挂接接收，主机继续发送会得到 NAK 并重试；communication 提交原始字节到 IN，直到 CDC `TxState` 清零（包括整包后的 ZLP）才重新挂接 OUT。
-因此支持包含 `00` 的二进制数据，不添加换行、不进行字符串转换。超过 64 字节的数据由 USB 主机拆包，按顺序逐包回显；不保留主机应用写调用的边界。
-10 ms 调度和单包背压偏向低资源占用，连续 64 字节包的回显吞吐约为 3.2 KB/s。
-任务访问 CDC 状态期间仅屏蔽 `USB_LP_CAN1_RX0_IRQn`，TIM2 和 DRDY 中断继续运行。
-复位或取消配置清除旧会话；挂起保留当前包，恢复后继续。
+| API | 上下文 | Contract |
+| --- | --- | --- |
+| `drvUsbDisconnect` | 启动，主循环 | USB PCD 初始化前调用 |
+| `drvUsbInit` | 启动，主循环 | USB PCD 初始化后注册 CDC 并启用 IRQ |
+| `drvUsbQueueSample` | sensorProcess，主循环 | 成功读取 ADS 后调用，同一时刻两通道复制到同一个槽 |
+| `drvUsbStreamProcess` | communicationProcess，每 10 ms，主循环 | 至多提交一包，未配置、挂起、忙或不足 5 对时保留队列 |
+| `drvUsbGetDroppedSamples` | 主循环 | 累计缓冲溢出丢弃的采样对数 |
+| CDC 回调 | USB ISR | 收到主机数据后直接丢弃并重新挂接 OUT，不回显 |
 
-PMA 分配：BTABLE `0x000..0x03F`，EP0 OUT `0x040..0x07F`，EP0 IN `0x080..0x0BF`，CDC IN `0x0C0..0x0FF`，CDC OUT `0x100..0x13F`，通知 IN `0x140..0x147`。
+40 槽环形缓冲可容纳约 80 ms 的采样，存储 240 字节通道数据和 40 字节序号。
+主循环独占队列读写，ISR 不访问队列。满时丢弃最旧 5 对，保留组边界，RTT usb_dropped 累加 5。
+USB RX 使用独立 64 字节缓冲，TX 使用独立 33 字节缓冲；发送完成前不修改 TX。
+仅屏蔽 USB IRQ 保护类存储生命周期和 TxState，DRDY、TIM2 继续运行。
+提交成功后才从队列移除 5 对；忙、未配置和提交失败都不出队。OK=1、STATE=−10、TRANSFER=−11。
+提交成功表示 USB 栈已接管数据，不表示上位机已经解析；复位或拔插可能丢失正在传输的一包，无应用层确认重发。
+挂起保留队列，但采样继续，超过容量会丢旧包。10 ms 调度发生延迟时不补跑，长期吞吐不足会造成溢出。
 
 ## 验证
 
-通过 Device Tool Build 编译。烧录后将板载 USB 数据口连接电脑，打开新出现的 CDC 串口并关闭串口工具的本地回显。
-分别发送文本、`00 FF 0D 0A`、63/64/65/128 字节和连续多包数据，确认接收内容与发送逐字节一致。
-再检查 USB 拔插、固件复位、发送期间挂起/恢复，确认重新枚举及回显恢复。
-已在当前 Windows 主机通过 J-Link 连续复位 3 次，观察到 COM25 消失后重新出现，重新打开串口后 4/63/64/65/128/256/1024 字节二进制数据均逐字节回显一致。
-设备断开后原串口句柄失效，电脑软件必须关闭旧句柄并重新打开串口。
-实测记录：仓库根目录 `develop/usb_selftest_result.json`；拔插与系统挂起/恢复仍需分别验收。
+编译使用 `py -3 develop/quick_deploy.py build`；烧录使用同一 Device Tool 的 flash。
+上位机使用 [receiver.py](../../../../HeartThirdCore/receiver.py)，不回传。
+板上验证应检查持续接收、每秒约 100 包、序号连续、CRC 正确、CH1/CH2 原始码，以及 USB 忙、拔插和缓冲溢出。
+原 develop/usb_selftest_result.json 是旧回显固件的历史测试，不能作为本协议的验收结果。

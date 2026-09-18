@@ -1,6 +1,6 @@
 /************************************************************************************
 * @file     : drvusb.c
-* @brief    : CDC descriptors, packet ownership and echo processing.
+* @brief    : CDC descriptors, sample ring and asynchronous frame transmission.
 * @details  : STM32F103 full-speed CDC, static storage and bounded cooperative work.
 * @author   :
 * @date     : 2026-09-17
@@ -12,15 +12,21 @@
 #include "usbd_core.h"
 #include "usbd_cdc.h"
 #include <stdbool.h>
+#include <string.h>
 
 static USBD_HandleTypeDef gUsbDevice;
 static USBD_CDC_HandleTypeDef gCdcStorage;
 static bool gAllocated = false;
 static bool gReady = false;
-static uint8_t gPacket[DRV_USB_PACKET_SIZE];
-static volatile uint32_t gPendingLength = 0U;
-static volatile bool gTransmitPending = false;
-static volatile bool gReceivePaused = false;
+static uint8_t gReceivePacket[DRV_USB_PACKET_SIZE];
+static uint8_t gTransmitPacket[DRV_USB_FRAME_SIZE];
+static uint8_t gSamples[DRV_USB_SAMPLE_CAPACITY][6];
+static uint8_t gSampleSequences[DRV_USB_SAMPLE_CAPACITY];
+static uint32_t gSampleHead = 0U;
+static uint32_t gSampleCount = 0U;
+static uint32_t gDroppedSamples = 0U;
+static uint8_t gFrameSequence = 0U;
+static uint8_t gFrameSampleCount = 0U;
 static uint8_t gLineCoding[7] = {0x00U, 0xC2U, 0x01U, 0x00U, 0U, 0U, 8U};
 static uint8_t gDeviceDescriptor[] = {
     18U, USB_DESC_TYPE_DEVICE, 0x00U, 0x02U, 0x02U, 0x02U, 0U, 64U,
@@ -94,7 +100,7 @@ static uint8_t *drvUsbSerial(USBD_SpeedTypeDef speed, uint16_t *length) {
 /** @brief Describe the single CDC configuration and interface. */
 static uint8_t *drvUsbInterface(USBD_SpeedTypeDef speed, uint16_t *length) {
     (void)speed;
-    return drvUsbString("CDC Echo", length);
+    return drvUsbString("CDC Samples", length);
 }
 
 static USBD_DescriptorsTypeDef gDescriptors = {
@@ -104,21 +110,15 @@ static USBD_DescriptorsTypeDef gDescriptors = {
 
 /** @brief Hand the packet buffer to CDC when configured, in USB ISR context. */
 static int8_t drvUsbCdcInit(void) {
-    gPendingLength = 0U;
-    gTransmitPending = false;
-    gReceivePaused = false;
-    return (int8_t)USBD_CDC_SetRxBuffer(&gUsbDevice, gPacket);
+    return (int8_t)USBD_CDC_SetRxBuffer(&gUsbDevice, gReceivePacket);
 }
 
 /** @brief Drop session ownership on host reset/unconfigure, in USB ISR context. */
 static int8_t drvUsbCdcDeInit(void) {
-    gPendingLength = 0U;
-    gTransmitPending = false;
-    gReceivePaused = false;
     return (int8_t)USBD_OK;
 }
 
-/** @brief Store line coding; baud and DTR do not gate raw USB echo. */
+/** @brief Store line coding; baud and DTR do not gate raw USB streaming. */
 static int8_t drvUsbCdcControl(uint8_t command, uint8_t *buffer, uint16_t length) {
     if ((command == CDC_SET_LINE_CODING) || (command == CDC_GET_LINE_CODING)) {
         if ((buffer == NULL) || (length != sizeof(gLineCoding))) {
@@ -133,14 +133,12 @@ static int8_t drvUsbCdcControl(uint8_t command, uint8_t *buffer, uint16_t length
     return (int8_t)USBD_OK;
 }
 
-/** @brief Publish one received packet; leave OUT NAK until its echo completes. */
+/** @brief Discard host payload and immediately rearm OUT; never echo data. */
 static int8_t drvUsbCdcReceive(uint8_t *buffer, uint32_t *length) {
-    if ((buffer != gPacket) || (length == NULL) || (*length > sizeof(gPacket))) {
+    if ((buffer != gReceivePacket) || (length == NULL) || (*length > sizeof(gReceivePacket))) {
         return (int8_t)USBD_FAIL;
     }
-    gPendingLength = *length;
-    gReceivePaused = true;
-    return (int8_t)USBD_OK;
+    return (int8_t)USBD_CDC_ReceivePacket(&gUsbDevice);
 }
 
 static USBD_CDC_ItfTypeDef gCdcInterface = {
@@ -180,40 +178,83 @@ int8_t drvUsbInit(void) {
     return DRV_USB_OK;
 }
 
-/** @brief Echo one packet without waits, keeping its storage until IN/ZLP completion. */
-int8_t drvUsbEchoProcess(void) {
+/** @brief Queue both channels atomically in main-loop ownership, MSB first. */
+void drvUsbQueueSample(const int32_t channel[2]) {
+    uint32_t lSlot;
+    uint32_t lChannel;
+    if (channel == NULL) {
+        return;
+    }
+    if (gSampleCount == DRV_USB_SAMPLE_CAPACITY) {
+        gSampleHead = (gSampleHead + DRV_USB_SAMPLES_PER_FRAME) % DRV_USB_SAMPLE_CAPACITY;
+        gSampleCount -= DRV_USB_SAMPLES_PER_FRAME;
+        gDroppedSamples += DRV_USB_SAMPLES_PER_FRAME;
+    }
+    lSlot = (gSampleHead + gSampleCount) % DRV_USB_SAMPLE_CAPACITY;
+    for (lChannel = 0U; lChannel < 2U; ++lChannel) {
+        uint32_t lCode = (uint32_t)channel[lChannel];
+        gSamples[lSlot][lChannel * 3U] = (uint8_t)(lCode >> 16U);
+        gSamples[lSlot][lChannel * 3U + 1U] = (uint8_t)(lCode >> 8U);
+        gSamples[lSlot][lChannel * 3U + 2U] = (uint8_t)lCode;
+    }
+    gSampleSequences[lSlot] = gFrameSequence;
+    ++gSampleCount;
+    if (++gFrameSampleCount == DRV_USB_SAMPLES_PER_FRAME) {
+        gFrameSampleCount = 0U;
+        ++gFrameSequence;
+    }
+}
+
+/** @brief CRC-8/SMBUS: polynomial 0x07, initial zero, no reflection or xor-out. */
+static uint8_t drvUsbFrameCrc(const uint8_t *data, uint32_t length) {
+    uint8_t lCrc = 0U;
+    uint32_t lByte;
+    uint32_t lBit;
+    for (lByte = 0U; lByte < length; ++lByte) {
+        lCrc ^= data[lByte];
+        for (lBit = 0U; lBit < 8U; ++lBit) {
+            lCrc = (uint8_t)((lCrc & 0x80U) ? ((uint32_t)lCrc << 1U) ^ DRV_USB_CRC_POLYNOMIAL : (uint32_t)lCrc << 1U);
+        }
+    }
+    return lCrc;
+}
+
+/** @brief Submit one five-pair frame only when USB is configured and IN is idle. */
+int8_t drvUsbStreamProcess(void) {
     int8_t lStatus = DRV_USB_OK;
     USBD_CDC_HandleTypeDef *lCdc;
+    uint32_t lSample;
     if (!gReady) {
         return DRV_USB_ERROR_STATE;
     }
-    /* Serialize CDC access with reset/receive interrupts; TIM2 and DRDY remain enabled. */
+    /* Protect class lifetime and TxState; the sample ring is main-loop only. */
     HAL_NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
     __DSB();
     __ISB();
     lCdc = (USBD_CDC_HandleTypeDef *)gUsbDevice.pClassData;
-    if ((gUsbDevice.dev_state == USBD_STATE_CONFIGURED) && (lCdc != NULL)) {
-        if (gTransmitPending && (lCdc->TxState == 0U)) {
-            gTransmitPending = false;
+    if ((gUsbDevice.dev_state == USBD_STATE_CONFIGURED) && (lCdc != NULL) &&
+        (lCdc->TxState == 0U) && (gSampleCount >= DRV_USB_SAMPLES_PER_FRAME)) {
+        gTransmitPacket[0] = DRV_USB_FRAME_HEADER;
+        gTransmitPacket[1] = gSampleSequences[gSampleHead];
+        for (lSample = 0U; lSample < DRV_USB_SAMPLES_PER_FRAME; ++lSample) {
+            uint32_t lSlot = (gSampleHead + lSample) % DRV_USB_SAMPLE_CAPACITY;
+            memcpy(&gTransmitPacket[2U + lSample * 6U], gSamples[lSlot], 6U);
         }
-        if ((gPendingLength != 0U) && !gTransmitPending) {
-            if ((USBD_CDC_SetTxBuffer(&gUsbDevice, gPacket, gPendingLength) == USBD_OK) &&
-                (USBD_CDC_TransmitPacket(&gUsbDevice) == USBD_OK)) {
-                gPendingLength = 0U;
-                gTransmitPending = true;
-            } else {
-                lStatus = DRV_USB_ERROR_TRANSFER;
-            }
-        }
-        if (gReceivePaused && !gTransmitPending && (gPendingLength == 0U)) {
-            if (USBD_CDC_ReceivePacket(&gUsbDevice) == USBD_OK) {
-                gReceivePaused = false;
-            } else {
-                lStatus = DRV_USB_ERROR_TRANSFER;
-            }
+        gTransmitPacket[DRV_USB_FRAME_SIZE - 1U] = drvUsbFrameCrc(&gTransmitPacket[1], DRV_USB_FRAME_SIZE - 2U);
+        if ((USBD_CDC_SetTxBuffer(&gUsbDevice, gTransmitPacket, sizeof(gTransmitPacket)) == USBD_OK) &&
+            (USBD_CDC_TransmitPacket(&gUsbDevice) == USBD_OK)) {
+            gSampleHead = (gSampleHead + DRV_USB_SAMPLES_PER_FRAME) % DRV_USB_SAMPLE_CAPACITY;
+            gSampleCount -= DRV_USB_SAMPLES_PER_FRAME;
+        } else {
+            lStatus = DRV_USB_ERROR_TRANSFER;
         }
     }
     HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
     return lStatus;
+}
+
+/** @brief Report overflow separately from ADS1292 missed conversions. */
+uint32_t drvUsbGetDroppedSamples(void) {
+    return gDroppedSamples;
 }
 /**************************End of file********************************/

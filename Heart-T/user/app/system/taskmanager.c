@@ -39,7 +39,7 @@ void taskManagerInit(void) {
     lStatus = drvUsbInit();
     gUsbReady = (lStatus == DRV_USB_OK);
     if (gUsbReady) {
-        LOG_I("usb", "CDC echo ready");
+        LOG_I("usb", "CDC sample stream ready");
     } else {
         LOG_E("usb", "init failed status=%d", (int)lStatus);
     }
@@ -89,6 +89,9 @@ void sensorProcess(void) {
         return;
     }
     lStatus = ads1292rReadSample(&gSensorSample);
+    if (lStatus == ADS1292R_OK) {
+        drvUsbQueueSample(gSensorSample.channel);
+    }
     if ((lStatus != ADS1292R_OK) && (lStatus != ADS1292R_ERROR_NOT_READY)) {
         lNowMs = systemGetTickMs();
         if ((uint32_t)(lNowMs - gLastErrorMs) >= SENSOR_REPORT_INTERVAL_MS) {
@@ -105,11 +108,11 @@ void communicationProcess(void) {
     if (!gUsbReady) {
         return;
     }
-    lStatus = drvUsbEchoProcess();
+    lStatus = drvUsbStreamProcess();
     lNowMs = systemGetTickMs();
     if ((lStatus != DRV_USB_OK) && ((uint32_t)(lNowMs - gLastUsbErrorMs) >= SENSOR_REPORT_INTERVAL_MS)) {
         gLastUsbErrorMs = lNowMs;
-        LOG_E("usb", "echo failed status=%d", (int)lStatus);
+        LOG_E("usb", "stream failed status=%d", (int)lStatus);
     }
 }
 
@@ -128,8 +131,9 @@ void backgroundProcess(void) {
         if (lStats.sampleCount == gLastSampleCount) {
             LOG_W("ads1292r", "no new samples; check DRDY PB15 and CLKSEL");
         } else {
-            LOG_I("ads1292r", "samples=%lu missed=%lu ch1=%ld ch2=%ld",
+            LOG_I("ads1292r", "samples=%lu missed=%lu usb_dropped=%lu ch1=%ld ch2=%ld",
                   (unsigned long)lStats.sampleCount, (unsigned long)lStats.missedCount,
+                  (unsigned long)drvUsbGetDroppedSamples(),
                   (long)gSensorSample.channel[0], (long)gSensorSample.channel[1]);
         }
         gLastSampleCount = lStats.sampleCount;

@@ -12,9 +12,11 @@
 Open this repository root in VS Code. On Windows, deploy the development tasks with
 `py -3 develop/quick_deploy.py deploy`, then reload the window to show the buttons.
 
-USB CDC echo runs in `communicationProcess`: bytes received on the board USB data port
-(PA11/PA12) are returned unchanged. See [USB driver contract](Heart-T/user/driver/drvusb/drvusb.md)
-for hardware, buffering and verification.
+USB CDC streams five simultaneous CH1/CH2 sample pairs per 33-byte frame every
+10 ms when configured and idle. A 40-pair sample ring buffers acquisition;
+frames use FA, an 8-bit sequence and CRC-8. Host payload is discarded, never echoed.
+See [USB driver contract](Heart-T/user/driver/drvusb/drvusb.md) and
+[host receiver](HeartThirdCore/README.md).
 
 `Heart-T/Middlewares/ST/STM32_USB_Device_Library/` contains the Core and CDC subset of
 [ST USB Device library v2.11.3](https://github.com/STMicroelectronics/stm32-mw-usb-device/tree/v2.11.3),
