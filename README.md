@@ -9,6 +9,7 @@
 - `.vscode/`: generated Build/Flash/Reset/RTT tasks, status bar buttons, and C/C++ indexing settings.
 - `rule/`: project rules and naming conventions.
 - `HeartThirdCore/`: Python CDC ring-buffer receiver, analysis worker and Qt Quick dual-channel HMI; see [host software](HeartThirdCore/README.md). Start with `py -3 HeartThirdCore/user/run.py`.
+- `FilterTools/`: CSV 双通道 FFT 与 Welch PSD 离线分析工具；参见 [频谱分析说明](FilterTools/README.md)。
 
 Open this repository root in VS Code. On Windows, deploy the development tasks with
 `py -3 develop/quick_deploy.py deploy`, then reload the window to show the buttons.

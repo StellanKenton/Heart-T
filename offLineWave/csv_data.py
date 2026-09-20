@@ -140,9 +140,7 @@ def butterworth_filter(
         raise ValueError("Cutoff frequency must be between zero and the Nyquist frequency")
 
     frequency_ratio = math.tan(math.pi * cutoff_frequency_hz / sample_rate_hz)
-    normalization = 1.0 / (
-        1.0 + math.sqrt(2.0) * frequency_ratio + frequency_ratio**2
-    )
+    normalization = 1.0 / (1.0 + math.sqrt(2.0) * frequency_ratio + frequency_ratio**2)
     if high_pass:
         b0 = normalization
         b1 = -2.0 * normalization
@@ -152,9 +150,7 @@ def butterworth_filter(
         b1 = 2.0 * b0
         b2 = b0
     a1 = 2.0 * (frequency_ratio**2 - 1.0) * normalization
-    a2 = (
-        1.0 - math.sqrt(2.0) * frequency_ratio + frequency_ratio**2
-    ) * normalization
+    a2 = (1.0 - math.sqrt(2.0) * frequency_ratio + frequency_ratio**2) * normalization
 
     first_value = float(values[0])
     previous_input_1 = first_value
@@ -198,7 +194,7 @@ def load_show_plot_data(csv_path: Path) -> ShowPlotData:
     """Load raw CSV channels and prepare every channel shown by the UI."""
     times, showPlotCh1, showPlotCh2, xLabel = load_channels(csv_path)  
     showPlotCh3, showPlotCh4 = apply_frequency_limits(times, showPlotCh1, showPlotCh2)
-    #showPlotCh3, showPlotCh4 = apply_50hz_notch(times, showPlotCh1, showPlotCh2)
+    showPlotCh3, showPlotCh4 = apply_50hz_notch(times, showPlotCh1, showPlotCh2)
     return ShowPlotData(
         times=times,
         xLabel=xLabel,
