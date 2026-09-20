@@ -53,6 +53,6 @@ USB RX 使用独立 64 字节缓冲，TX 使用独立 33 字节缓冲；发送�
 ## 验证
 
 编译使用 `py -3 develop/quick_deploy.py build`；烧录使用同一 Device Tool 的 flash。
-上位机使用 [receiver.py](../../../../HeartThirdCore/receiver.py)，不回传。
+上位机使用 [运行入口](../../../../HeartThirdCore/user/run.py)，不回传。
 板上验证应检查持续接收、每秒约 100 包、序号连续、CRC 正确、CH1/CH2 原始码，以及 USB 忙、拔插和缓冲溢出。
 原 develop/usb_selftest_result.json 是旧回显固件的历史测试，不能作为本协议的验收结果。
