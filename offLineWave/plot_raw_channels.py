@@ -1,7 +1,6 @@
 """Open an ECG CSV file and plot its two raw channels."""
 
 import argparse
-import csv
 from bisect import bisect_left, bisect_right
 from pathlib import Path
 from tkinter import Tk, filedialog
@@ -9,10 +8,10 @@ from tkinter import Tk, filedialog
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button, RangeSlider
 
+from csv_data import load_show_plot_data
+
 
 DEFAULT_DATA_DIR = Path(r"C:\Users\senki\Desktop\ECGDATA")
-CHANNEL_1_NAMES = ("rawch1", "ch1_raw")
-CHANNEL_2_NAMES = ("rawch2", "ch2_raw")
 
 
 class MovableRangeSlider(RangeSlider):
@@ -80,72 +79,31 @@ def choose_csv() -> Path | None:
     return Path(selected) if selected else None
 
 
-def find_column(fieldnames: list[str], candidates: tuple[str, ...]) -> str:
-    """Return the first matching column name, ignoring letter case."""
-    normalized = {name.strip().lower(): name for name in fieldnames}
-    for candidate in candidates:
-        if candidate in normalized:
-            return normalized[candidate]
-    raise ValueError(f"Missing channel column; expected one of: {', '.join(candidates)}")
-
-
-def load_channels(csv_path: Path) -> tuple[list[float], list[float], list[float], str]:
-    """Load sample time and the two raw channels from a CSV file."""
-    times = []
-    channel_1 = []
-    channel_2 = []
-
-    with csv_path.open("r", encoding="utf-8-sig", newline="") as csv_file:
-        reader = csv.DictReader(csv_file)
-        if not reader.fieldnames:
-            raise ValueError("The CSV file has no header")
-
-        ch1_name = find_column(reader.fieldnames, CHANNEL_1_NAMES)
-        ch2_name = find_column(reader.fieldnames, CHANNEL_2_NAMES)
-        time_name = "elapsed_ms" if "elapsed_ms" in reader.fieldnames else None
-
-        for row in reader:
-            if not row.get(ch1_name) or not row.get(ch2_name):
-                continue
-            try:
-                channel_1.append(float(row[ch1_name]))
-                channel_2.append(float(row[ch2_name]))
-                times.append(float(row[time_name]) / 1000.0 if time_name else len(times))
-            except (TypeError, ValueError):
-                continue
-
-    if not channel_1:
-        raise ValueError("No valid channel samples were found")
-    return times, channel_1, channel_2, "Time (s)" if time_name else "Sample index"
-
-
 def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
-    """Plot raw channels with sliders controlling all visible axis limits."""
-    times, channel_1, channel_2, x_label = load_channels(csv_path)
-    figure, axes = plt.subplots(2, 1, sharex=True, figsize=(15, 9))
+    """Plot raw and 50 Hz notch-filtered channels with interactive controls."""
+    showPlotData = load_show_plot_data(csv_path)
+    times = showPlotData.times
+    x_label = showPlotData.xLabel
+    showPlotSeries = (
+        (showPlotData.showPlotCh1, "Raw CH1", "tab:blue"),
+        (showPlotData.showPlotCh2, "Raw CH2", "tab:orange"),
+        (showPlotData.showPlotCh3, "CH1 - 50 Hz notch", "tab:green"),
+        (showPlotData.showPlotCh4, "CH2 - 50 Hz notch", "tab:red"),
+    )
+
+    figure, axes = plt.subplots(4, 1, sharex=True, figsize=(14, 8))
     figure.canvas.manager.set_window_title(f"ECG raw waveform - {csv_path.name}")
-    figure.suptitle(csv_path.name)
-    figure.subplots_adjust(left=0.08, right=0.79, bottom=0.16, top=0.92, hspace=0.12)
+    figure.subplots_adjust(left=0.07, right=0.78, bottom=0.13, top=0.98, hspace=0.13)
 
-    axes[0].plot(times, channel_1, color="tab:blue", linewidth=0.8)
-    axes[0].set_ylabel("Raw CH1")
-    axes[1].plot(times, channel_2, color="tab:orange", linewidth=0.8)
-    axes[1].set_ylabel("Raw CH2")
-    axes[1].set_xlabel(x_label)
-
-    for axis in axes:
+    for axis, (values, label, color) in zip(axes, showPlotSeries):
+        axis.plot(times, values, color=color, linewidth=0.8)
+        axis.set_ylabel(label)
         axis.grid(True, alpha=0.3)
         axis.margins(x=0)
+    axes[-1].set_xlabel(x_label)
 
     x_min, x_max = min(times), max(times)
-    ch1_min, ch1_max = padded_limits(channel_1)
-    ch2_min, ch2_max = padded_limits(channel_2)
-    axes[0].set_ylim(ch1_min, ch1_max)
-    axes[1].set_ylim(ch2_min, ch2_max)
-
-    x_slider_axis = figure.add_axes((0.14, 0.055, 0.58, 0.03))
-    ch1_slider_axis = figure.add_axes((0.815, 0.58, 0.016, 0.30))
-    ch2_slider_axis = figure.add_axes((0.815, 0.20, 0.016, 0.30))
+    x_slider_axis = figure.add_axes((0.13, 0.045, 0.58, 0.025))
     x_slider = MovableRangeSlider(
         x_slider_axis,
         "X range",
@@ -154,18 +112,36 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
         valinit=(x_min, x_max),
         valfmt="%.3f",
     )
-    ch1_slider = MovableRangeSlider(
-        ch1_slider_axis,
-        "CH1",
-        ch1_min,
-        ch1_max,
-        valinit=(ch1_min, ch1_max),
-        orientation="vertical",
-        valfmt="%.0f",
-    )
 
-    point_1_axis = figure.add_axes((0.86, 0.83, 0.10, 0.045))
-    point_2_axis = figure.add_axes((0.86, 0.77, 0.10, 0.045))
+    y_sliders = []
+    slider_labels = ("R1", "R2", "F1", "F2")
+    for axis, (values, _, _), slider_label in zip(
+        axes, showPlotSeries, slider_labels
+    ):
+        lower, upper = padded_limits(values)
+        axis.set_ylim(lower, upper)
+        axis_position = axis.get_position()
+        slider_axis = figure.add_axes((0.80, axis_position.y0, 0.012, axis_position.height))
+        slider = MovableRangeSlider(
+            slider_axis,
+            slider_label,
+            lower,
+            upper,
+            valinit=(lower, upper),
+            orientation="vertical",
+            valfmt="%.0f",
+        )
+        slider.valtext.set_visible(False)
+
+        def update_y_limits(limits: tuple[float, float], target_axis=axis) -> None:
+            target_axis.set_ylim(*limits)
+            figure.canvas.draw_idle()
+
+        slider.on_changed(update_y_limits)
+        y_sliders.append(slider)
+
+    point_1_axis = figure.add_axes((0.85, 0.88, 0.11, 0.04))
+    point_2_axis = figure.add_axes((0.85, 0.83, 0.11, 0.04))
     point_1_button = Button(point_1_axis, "Point 1", hovercolor="#ffb3bd")
     point_2_button = Button(point_2_axis, "Point 2", hovercolor="#d8b3ff")
     cursor_colors = ("crimson", "purple")
@@ -179,35 +155,18 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
     cursor_positions = [None, None]
     cursor_state = {"active": None}
     measurement_text = figure.text(
-        0.86,
-        0.72,
+        0.84,
+        0.78,
         "Choose Point 1,\nthen click waveform.",
         ha="left",
         va="top",
         family="monospace",
-        fontsize=10,
+        fontsize=8.5,
         bbox={"boxstyle": "round", "facecolor": "white", "edgecolor": "0.75"},
-    )
-    ch2_slider = MovableRangeSlider(
-        ch2_slider_axis,
-        "CH2",
-        ch2_min,
-        ch2_max,
-        valinit=(ch2_min, ch2_max),
-        orientation="vertical",
-        valfmt="%.0f",
     )
 
     def update_x_limits(limits: tuple[float, float]) -> None:
-        axes[1].set_xlim(*limits)
-        figure.canvas.draw_idle()
-
-    def update_ch1_limits(limits: tuple[float, float]) -> None:
-        axes[0].set_ylim(*limits)
-        figure.canvas.draw_idle()
-
-    def update_ch2_limits(limits: tuple[float, float]) -> None:
-        axes[1].set_ylim(*limits)
+        axes[-1].set_xlim(*limits)
         figure.canvas.draw_idle()
 
     def update_measurement() -> None:
@@ -225,26 +184,29 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
         start, end = sorted(cursor_positions)
         first_index = bisect_left(times, start)
         last_index = bisect_right(times, end)
-        selected_ch1 = channel_1[first_index:last_index]
-        selected_ch2 = channel_2[first_index:last_index]
-        if not selected_ch1:
+        selected_series = [
+            values[first_index:last_index] for values, _, _ in showPlotSeries
+        ]
+        if not selected_series[0]:
             measurement_text.set_text("Measurement\nNo samples selected")
         else:
-            ch1_low, ch1_high = min(selected_ch1), max(selected_ch1)
-            ch2_low, ch2_high = min(selected_ch2), max(selected_ch2)
-            time_unit = "s" if x_label == "Time (s)" else "samples"
-            measurement_text.set_text(
+            result_lines = [
                 "Measurement\n"
                 f"Point 1: {cursor_positions[0]:.3f}\n"
                 f"Point 2: {cursor_positions[1]:.3f}\n"
-                f"Delta: {end - start:.3f} {time_unit}\n\n"
-                f"CH1 max:  {ch1_high:.0f}\n"
-                f"CH1 min:  {ch1_low:.0f}\n"
-                f"CH1 diff: {ch1_high - ch1_low:.0f}\n\n"
-                f"CH2 max:  {ch2_high:.0f}\n"
-                f"CH2 min:  {ch2_low:.0f}\n"
-                f"CH2 diff: {ch2_high - ch2_low:.0f}"
-            )
+                f"Delta: {end - start:.3f} s"
+            ]
+            for selected_values, (_, label, _) in zip(
+                selected_series, showPlotSeries
+            ):
+                low, high = min(selected_values), max(selected_values)
+                result_lines.append(
+                    f"\n\n{label}\n"
+                    f"max:  {high:.0f}\n"
+                    f"min:  {low:.0f}\n"
+                    f"diff: {high - low:.0f}"
+                )
+            measurement_text.set_text("".join(result_lines))
         figure.canvas.draw_idle()
 
     def activate_cursor(cursor_index: int) -> None:
@@ -267,15 +229,12 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
         update_measurement()
 
     x_slider.on_changed(update_x_limits)
-    ch1_slider.on_changed(update_ch1_limits)
-    ch2_slider.on_changed(update_ch2_limits)
     point_1_button.on_clicked(lambda event: activate_cursor(0))
     point_2_button.on_clicked(lambda event: activate_cursor(1))
     figure.canvas.mpl_connect("button_press_event", place_cursor)
     figure._ecg_controls = (
         x_slider,
-        ch1_slider,
-        ch2_slider,
+        *y_sliders,
         point_1_button,
         point_2_button,
     )
