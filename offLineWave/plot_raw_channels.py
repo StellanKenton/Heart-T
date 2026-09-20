@@ -8,7 +8,7 @@ from tkinter import Tk, filedialog
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button, RangeSlider
 
-from csv_data import load_show_plot_data
+from csv_data import export_processed_channels, load_show_plot_data
 
 
 DEFAULT_DATA_DIR = Path(r"C:\Users\senki\Desktop\ECGDATA")
@@ -79,6 +79,22 @@ def choose_csv() -> Path | None:
     return Path(selected) if selected else None
 
 
+def choose_export_csv(source_path: Path) -> Path | None:
+    """Choose where to export the processed CH3 and CH4 samples."""
+    root = Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    selected = filedialog.asksaveasfilename(
+        title="Export processed CH3 and CH4",
+        initialdir=source_path.parent,
+        initialfile=f"{source_path.stem}_ch3_ch4.csv",
+        defaultextension=".csv",
+        filetypes=(("CSV files", "*.csv"), ("All files", "*.*")),
+    )
+    root.destroy()
+    return Path(selected) if selected else None
+
+
 def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
     """Plot raw and 50 Hz notch-filtered channels with interactive controls."""
     showPlotData = load_show_plot_data(csv_path)
@@ -140,10 +156,13 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
         slider.on_changed(update_y_limits)
         y_sliders.append(slider)
 
+    export_axis = figure.add_axes((0.85, 0.93, 0.11, 0.04))
     point_1_axis = figure.add_axes((0.85, 0.88, 0.11, 0.04))
     point_2_axis = figure.add_axes((0.85, 0.83, 0.11, 0.04))
+    export_button = Button(export_axis, "Export CH3/CH4", hovercolor="#bde5c8")
     point_1_button = Button(point_1_axis, "Point 1", hovercolor="#ffb3bd")
     point_2_button = Button(point_2_axis, "Point 2", hovercolor="#d8b3ff")
+    export_status_text = figure.text(0.85, 0.815, "", ha="left", va="top", fontsize=8)
     cursor_colors = ("crimson", "purple")
     cursor_lines = [[], []]
     for cursor_index, color in enumerate(cursor_colors):
@@ -228,13 +247,29 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
             line.set_visible(True)
         update_measurement()
 
+    def export_channels(event) -> None:
+        export_path = choose_export_csv(csv_path)
+        if export_path is None:
+            return
+        try:
+            export_processed_channels(
+                export_path, showPlotData.showPlotCh3, showPlotData.showPlotCh4
+            )
+        except OSError as error:
+            export_status_text.set_text(f"Export failed:\n{error}")
+        else:
+            export_status_text.set_text(f"Saved:\n{export_path.name}")
+        figure.canvas.draw_idle()
+
     x_slider.on_changed(update_x_limits)
+    export_button.on_clicked(export_channels)
     point_1_button.on_clicked(lambda event: activate_cursor(0))
     point_2_button.on_clicked(lambda event: activate_cursor(1))
     figure.canvas.mpl_connect("button_press_event", place_cursor)
     figure._ecg_controls = (
         x_slider,
         *y_sliders,
+        export_button,
         point_1_button,
         point_2_button,
     )
