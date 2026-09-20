@@ -1,19 +1,18 @@
 """Load and process raw ECG channel data from CSV files."""
 
 import csv
+import math
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import median
 
 import numpy as np
-from scipy.signal import butter, filtfilt, iirnotch, sosfiltfilt
+from scipy.signal import filtfilt, iirnotch
 
 
 CHANNEL_1_NAME = "ch1_raw"
 CHANNEL_2_NAME = "ch2_raw"
 DEFAULT_SAMPLE_RATE_HZ = 500.0
-BANDPASS_LOW_HZ = 0.5
-BANDPASS_HIGH_HZ = 40.0
-BANDPASS_ORDER = 4
 
 
 @dataclass(frozen=True)
@@ -117,37 +116,66 @@ def apply_notch_filter(
     )
 
 
-def bandpass_filter(
+def butterworth_filter(
     values: list[float],
     sample_rate_hz: float,
-    low_frequency_hz: float = BANDPASS_LOW_HZ,
-    high_frequency_hz: float = BANDPASS_HIGH_HZ,
-    order: int = BANDPASS_ORDER,
+    cutoff_frequency_hz: float,
+    high_pass: bool,
 ) -> list[float]:
-    """Apply a zero-phase Butterworth band-pass filter to one channel."""
+    """Apply a second-order Butterworth high-pass or low-pass filter."""
     if not values:
         return []
-    if not 0.0 < low_frequency_hz < high_frequency_hz < sample_rate_hz / 2.0:
-        raise ValueError("Band-pass frequencies must be inside the Nyquist range")
+    if not 0.0 < cutoff_frequency_hz < sample_rate_hz / 2.0:
+        raise ValueError("Cutoff frequency must be between zero and the Nyquist frequency")
 
-    sos = butter(
-        order,
-        (low_frequency_hz, high_frequency_hz),
-        btype="bandpass",
-        fs=sample_rate_hz,
-        output="sos",
-    )
-    return sosfiltfilt(sos, np.asarray(values, dtype=np.float64)).tolist()
+    frequency_ratio = math.tan(math.pi * cutoff_frequency_hz / sample_rate_hz)
+    normalization = 1.0 / (1.0 + math.sqrt(2.0) * frequency_ratio + frequency_ratio**2)
+    if high_pass:
+        b0 = normalization
+        b1 = -2.0 * normalization
+        b2 = normalization
+    else:
+        b0 = frequency_ratio**2 * normalization
+        b1 = 2.0 * b0
+        b2 = b0
+    a1 = 2.0 * (frequency_ratio**2 - 1.0) * normalization
+    a2 = (1.0 - math.sqrt(2.0) * frequency_ratio + frequency_ratio**2) * normalization
+
+    first_value = float(values[0])
+    previous_input_1 = first_value
+    previous_input_2 = first_value
+    previous_output_1 = 0.0 if high_pass else first_value
+    previous_output_2 = previous_output_1
+    filtered = []
+
+    for value in values:
+        current_input = float(value)
+        current_output = (
+            b0 * current_input
+            + b1 * previous_input_1
+            + b2 * previous_input_2
+            - a1 * previous_output_1
+            - a2 * previous_output_2
+        )
+        filtered.append(current_output)
+        previous_input_2 = previous_input_1
+        previous_input_1 = current_input
+        previous_output_2 = previous_output_1
+        previous_output_1 = current_output
+
+    return filtered
 
 
 def apply_frequency_limits(
     times: list[float], channel_1: list[float], channel_2: list[float]
 ) -> tuple[list[float], list[float]]:
-    """Apply the standard 0.5-40 Hz band-pass filter to both channels."""
+    """Apply the standard 0.5 Hz high-pass and 40 Hz low-pass filters."""
     sample_rate_hz = estimate_sample_rate(times)
+    high_passed_1 = butterworth_filter(channel_1, sample_rate_hz, 0.5, True)
+    high_passed_2 = butterworth_filter(channel_2, sample_rate_hz, 0.5, True)
     return (
-        bandpass_filter(channel_1, sample_rate_hz),
-        bandpass_filter(channel_2, sample_rate_hz),
+        butterworth_filter(high_passed_1, sample_rate_hz, 40.0, False),
+        butterworth_filter(high_passed_2, sample_rate_hz, 40.0, False),
     )
 
 
