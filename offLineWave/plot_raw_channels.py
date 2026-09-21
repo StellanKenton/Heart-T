@@ -6,12 +6,55 @@ from pathlib import Path
 from tkinter import Tk, filedialog
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.widgets import Button, RangeSlider
+from scipy.signal import find_peaks
 
 from csv_data import export_processed_channels, load_show_plot_data
 
 
 DEFAULT_DATA_DIR = Path(r"C:\Users\senki\Desktop\ECGDATA")
+FS = 500.0
+
+
+def detect_r_peaks(ecg, fs: float = FS) -> np.ndarray:
+    """Detect R peaks in a filtered ECG signal."""
+    if fs <= 0.0:
+        raise ValueError("Sample rate must be greater than zero")
+
+    x = np.asarray(ecg, dtype=np.float64)
+    if x.size == 0:
+        return np.asarray([], dtype=np.int64)
+
+    # Remove the overall DC offset before peak detection.
+    x = x - np.median(x)
+
+    # Keep R peaks at least 300 ms apart (about 200 bpm maximum).
+    min_distance = max(int(0.30 * fs), 1)
+
+    # Use the median absolute deviation as a robust noise estimate.
+    median = np.median(x)
+    mad = np.median(np.abs(x - median))
+    prominence = max(3.0 * mad, 1.0)
+
+    peaks, _ = find_peaks(
+        x,
+        distance=min_distance,
+        prominence=prominence,
+    )
+    return peaks
+
+
+def calculate_heart_rate(r_times: np.ndarray) -> float | None:
+    """Return the average heart rate in bpm from R-peak times."""
+    if len(r_times) < 2:
+        return None
+
+    rr_intervals = np.diff(r_times)
+    valid_intervals = rr_intervals[rr_intervals > 0.0]
+    if valid_intervals.size == 0:
+        return None
+    return float(60.0 / np.mean(valid_intervals))
 
 
 class MovableRangeSlider(RangeSlider):
@@ -100,6 +143,10 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
     showPlotData = load_show_plot_data(csv_path)
     times = showPlotData.times
     x_label = showPlotData.xLabel
+    filtered_ecg = np.asarray(showPlotData.showPlotCh4, dtype=np.float64)
+    r_peaks = detect_r_peaks(filtered_ecg, FS)
+    r_times = r_peaks / FS
+    heart_rate = calculate_heart_rate(r_times)
     showPlotSeries = (
         (showPlotData.showPlotCh1, "Raw CH1", "tab:blue"),
         (showPlotData.showPlotCh2, "Raw CH2", "tab:orange"),
@@ -116,6 +163,18 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
         axis.set_ylabel(label)
         axis.grid(True, alpha=0.3)
         axis.margins(x=0)
+    axes[-1].scatter(
+        r_times,
+        filtered_ecg[r_peaks],
+        color="tab:blue",
+        marker="x",
+        s=28,
+        linewidths=1.2,
+        label="R peak",
+        zorder=3,
+    )
+    if r_peaks.size:
+        axes[-1].legend(loc="upper right")
     axes[-1].set_xlabel(x_label)
 
     x_min, x_max = min(times), max(times)
@@ -163,6 +222,17 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
     point_1_button = Button(point_1_axis, "Point 1", hovercolor="#ffb3bd")
     point_2_button = Button(point_2_axis, "Point 2", hovercolor="#d8b3ff")
     export_status_text = figure.text(0.85, 0.815, "", ha="left", va="top", fontsize=8)
+    heart_rate_text = "N/A" if heart_rate is None else f"{heart_rate:.1f} bpm"
+    figure.text(
+        0.84,
+        0.78,
+        f"Heart rate\n{heart_rate_text}\nR peaks: {len(r_peaks)}",
+        ha="left",
+        va="top",
+        fontsize=10,
+        weight="bold",
+        bbox={"boxstyle": "round", "facecolor": "#e8f5f0", "edgecolor": "#169c78"},
+    )
     cursor_colors = ("crimson", "purple")
     cursor_lines = [[], []]
     for cursor_index, color in enumerate(cursor_colors):
@@ -175,7 +245,7 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
     cursor_state = {"active": None}
     measurement_text = figure.text(
         0.84,
-        0.78,
+        0.67,
         "Choose Point 1,\nthen click waveform.",
         ha="left",
         va="top",
