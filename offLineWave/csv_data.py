@@ -17,31 +17,46 @@ BANDPASS_ORDER = 4
 
 
 def detect_r_peaks(ecg, fs: float = DEFAULT_SAMPLE_RATE_HZ) -> np.ndarray:
-    """Detect R peaks in a filtered ECG signal."""
-    if fs <= 0.0:
+    """Find QRS candidates from slope energy, then locate R peaks in the ECG."""
+    if not np.isfinite(fs) or fs <= 0.0:
         raise ValueError("Sample rate must be greater than zero")
 
     x = np.asarray(ecg, dtype=np.float64)
-    if x.size == 0:
+    if x.ndim != 1 or not np.all(np.isfinite(x)):
+        raise ValueError("ECG must be a one-dimensional array of finite samples")
+    if x.size < 3:
         return np.asarray([], dtype=np.int64)
 
-    # Remove the overall DC offset before peak detection.
-    x = x - np.median(x)
+    # A centered 150 ms moving integral highlights the sharp QRS slopes.
+    derivative = np.diff(x, prepend=x[0])
+    squared = derivative * derivative
+    window = min(max(int(round(0.15 * fs)), 1), x.size)
+    integrated = np.convolve(squared, np.ones(window) / window, mode="same")
 
-    # Keep R peaks at least 300 ms apart (about 200 bpm maximum).
-    min_distance = max(int(0.30 * fs), 1)
-
-    # Use the median absolute deviation as a robust noise estimate.
-    median = np.median(x)
-    mad = np.median(np.abs(x - median))
-    prominence = max(3.0 * mad, 1.0)
-
-    peaks, _ = find_peaks(
-        x,
-        distance=min_distance,
-        prominence=prominence,
+    baseline = np.median(integrated)
+    mad = np.median(np.abs(integrated - baseline))
+    threshold = baseline + max(
+        3.0 * mad, 0.12 * (np.percentile(integrated, 95) - baseline)
     )
-    return peaks
+    min_distance = max(int(0.30 * fs), 1)
+    candidates, _ = find_peaks(integrated, height=threshold, distance=min_distance)
+
+    # The integral marks a QRS region, not the R sample itself.
+    search_radius = max(int(round(0.12 * fs)), 1)
+    peaks = []
+    peak_energies = []
+    for candidate in candidates:
+        start = max(candidate - search_radius, 0)
+        stop = min(candidate + search_radius + 1, x.size)
+        peak = start + int(np.argmax(x[start:stop]))
+        if peaks and peak - peaks[-1] < min_distance:
+            if integrated[candidate] > peak_energies[-1]:
+                peaks[-1] = peak
+                peak_energies[-1] = integrated[candidate]
+            continue
+        peaks.append(peak)
+        peak_energies.append(integrated[candidate])
+    return np.asarray(peaks, dtype=np.int64)
 
 
 def calculate_heart_rate(r_times: np.ndarray) -> float | None:
