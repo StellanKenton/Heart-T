@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from scipy.signal import butter, filtfilt, iirnotch, sosfiltfilt
+from scipy.signal import butter, filtfilt, find_peaks, iirnotch, sosfiltfilt
 
 
 CHANNEL_1_NAME = "ch1_raw"
@@ -14,6 +14,46 @@ DEFAULT_SAMPLE_RATE_HZ = 500.0
 BANDPASS_LOW_HZ = 0.5
 BANDPASS_HIGH_HZ = 40.0
 BANDPASS_ORDER = 4
+
+
+def detect_r_peaks(ecg, fs: float = DEFAULT_SAMPLE_RATE_HZ) -> np.ndarray:
+    """Detect R peaks in a filtered ECG signal."""
+    if fs <= 0.0:
+        raise ValueError("Sample rate must be greater than zero")
+
+    x = np.asarray(ecg, dtype=np.float64)
+    if x.size == 0:
+        return np.asarray([], dtype=np.int64)
+
+    # Remove the overall DC offset before peak detection.
+    x = x - np.median(x)
+
+    # Keep R peaks at least 300 ms apart (about 200 bpm maximum).
+    min_distance = max(int(0.30 * fs), 1)
+
+    # Use the median absolute deviation as a robust noise estimate.
+    median = np.median(x)
+    mad = np.median(np.abs(x - median))
+    prominence = max(3.0 * mad, 1.0)
+
+    peaks, _ = find_peaks(
+        x,
+        distance=min_distance,
+        prominence=prominence,
+    )
+    return peaks
+
+
+def calculate_heart_rate(r_times: np.ndarray) -> float | None:
+    """Return the average heart rate in bpm from R-peak times."""
+    if len(r_times) < 2:
+        return None
+
+    rr_intervals = np.diff(r_times)
+    valid_intervals = rr_intervals[rr_intervals > 0.0]
+    if valid_intervals.size == 0:
+        return None
+    return float(60.0 / np.mean(valid_intervals))
 
 
 @dataclass(frozen=True)

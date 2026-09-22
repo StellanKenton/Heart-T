@@ -8,53 +8,16 @@ from tkinter import Tk, filedialog
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Button, RangeSlider
-from scipy.signal import find_peaks
-
-from csv_data import export_processed_channels, load_show_plot_data
+from csv_data import (
+    DEFAULT_SAMPLE_RATE_HZ,
+    calculate_heart_rate,
+    detect_r_peaks,
+    export_processed_channels,
+    load_show_plot_data,
+)
 
 
 DEFAULT_DATA_DIR = Path(r"C:\Users\senki\Desktop\ECGDATA")
-FS = 500.0
-
-
-def detect_r_peaks(ecg, fs: float = FS) -> np.ndarray:
-    """Detect R peaks in a filtered ECG signal."""
-    if fs <= 0.0:
-        raise ValueError("Sample rate must be greater than zero")
-
-    x = np.asarray(ecg, dtype=np.float64)
-    if x.size == 0:
-        return np.asarray([], dtype=np.int64)
-
-    # Remove the overall DC offset before peak detection.
-    x = x - np.median(x)
-
-    # Keep R peaks at least 300 ms apart (about 200 bpm maximum).
-    min_distance = max(int(0.30 * fs), 1)
-
-    # Use the median absolute deviation as a robust noise estimate.
-    median = np.median(x)
-    mad = np.median(np.abs(x - median))
-    prominence = max(3.0 * mad, 1.0)
-
-    peaks, _ = find_peaks(
-        x,
-        distance=min_distance,
-        prominence=prominence,
-    )
-    return peaks
-
-
-def calculate_heart_rate(r_times: np.ndarray) -> float | None:
-    """Return the average heart rate in bpm from R-peak times."""
-    if len(r_times) < 2:
-        return None
-
-    rr_intervals = np.diff(r_times)
-    valid_intervals = rr_intervals[rr_intervals > 0.0]
-    if valid_intervals.size == 0:
-        return None
-    return float(60.0 / np.mean(valid_intervals))
 
 
 class MovableRangeSlider(RangeSlider):
@@ -144,8 +107,8 @@ def plot_channels(csv_path: Path, output_path: Path | None = None) -> None:
     times = showPlotData.times
     x_label = showPlotData.xLabel
     filtered_ecg = np.asarray(showPlotData.showPlotCh4, dtype=np.float64)
-    r_peaks = detect_r_peaks(filtered_ecg, FS)
-    r_times = r_peaks / FS
+    r_peaks = detect_r_peaks(filtered_ecg, DEFAULT_SAMPLE_RATE_HZ)
+    r_times = r_peaks / DEFAULT_SAMPLE_RATE_HZ
     heart_rate = calculate_heart_rate(r_times)
     showPlotSeries = (
         (showPlotData.showPlotCh1, "Raw CH1", "tab:blue"),
