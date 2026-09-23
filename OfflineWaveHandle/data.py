@@ -5,10 +5,23 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from scipy.signal import butter, filtfilt, find_peaks, iirnotch, sosfiltfilt
+from scipy.signal import butter, filtfilt, find_peaks, iirnotch, savgol_filter, sosfiltfilt
 
 
 SAMPLE_RATE_HZ = 500.0
+
+
+@dataclass(frozen=True)
+class BeatMeasurement:
+    start: int
+    stop: int
+    r: int
+    q_onset: int | None
+    q_end: int | None
+    s_onset: int | None
+    s_end: int | None
+    qrs_onset: int | None
+    qrs_end: int | None
 
 
 @dataclass(frozen=True)
@@ -17,6 +30,8 @@ class EcgData:
     ch2: np.ndarray
     ch4: np.ndarray
     r_peaks: np.ndarray
+    rr_intervals: np.ndarray
+    instantaneous_hr: np.ndarray
     heart_rate: float | None
 
     def limits(self, values: np.ndarray) -> tuple[float, float]:
@@ -58,6 +73,32 @@ class EcgData:
         indices = self.r_peaks[left:right]
         return np.column_stack((self.times[indices], self.ch4[indices]))
 
+    def visible_heart_rates(self, start: float, end: float) -> tuple[np.ndarray, np.ndarray]:
+        """Return visible beat rates, including rejected intervals as gaps."""
+        beat_times = self.times[self.r_peaks[1:]]
+        left = int(np.searchsorted(beat_times, start, side="left"))
+        right = int(np.searchsorted(beat_times, end, side="right"))
+        return beat_times[left:right], self.instantaneous_hr[left:right]
+
+    def beat_near(self, target: float) -> BeatMeasurement | None:
+        """Select a detected R peak near a click and measure its isolated beat."""
+        if not self.r_peaks.size:
+            return None
+        peak_times = self.times[self.r_peaks]
+        position = int(np.searchsorted(peak_times, target))
+        candidates = [index for index in (position - 1, position) if 0 <= index < self.r_peaks.size]
+        nearest = min(candidates, key=lambda index: abs(peak_times[index] - target))
+        if abs(peak_times[nearest] - target) > 0.20:
+            return None
+        r = int(self.r_peaks[nearest])
+        start = max(0, r - int(0.30 * SAMPLE_RATE_HZ))
+        stop = min(self.times.size, r + int(0.40 * SAMPLE_RATE_HZ) + 1)
+        if nearest:
+            start = max(start, (int(self.r_peaks[nearest - 1]) + r) // 2 + 1)
+        if nearest + 1 < self.r_peaks.size:
+            stop = min(stop, (r + int(self.r_peaks[nearest + 1])) // 2 + 1)
+        return _measure_beat(self.ch4, start, stop, r)
+
     def measurement(self, first: float, second: float) -> str:
         start, end = sorted((first, second))
         left = int(np.searchsorted(self.times, start, side="left"))
@@ -80,30 +121,88 @@ class EcgData:
 
 
 def _detect_r_peaks(ecg: np.ndarray) -> np.ndarray:
-    if ecg.size < 3:
+    if ecg.size < 7:
         return np.empty(0, dtype=np.int64)
-    derivative = np.diff(ecg, prepend=ecg[0])
-    window = min(max(int(round(0.15 * SAMPLE_RATE_HZ)), 1), ecg.size)
-    integrated = np.convolve(derivative * derivative, np.ones(window) / window, mode="same")
-    baseline = np.median(integrated)
-    mad = np.median(np.abs(integrated - baseline))
-    threshold = baseline + max(3.0 * mad, 0.12 * (np.percentile(integrated, 95) - baseline))
-    distance = max(int(0.30 * SAMPLE_RATE_HZ), 1)
-    candidates, _ = find_peaks(integrated, height=threshold, distance=distance)
-    radius = max(int(round(0.12 * SAMPLE_RATE_HZ)), 1)
-    peaks = []
-    energies = []
-    for candidate in candidates:
-        start = max(candidate - radius, 0)
-        stop = min(candidate + radius + 1, ecg.size)
-        peak = start + int(np.argmax(ecg[start:stop]))
-        if peaks and peak - peaks[-1] < distance:
-            if integrated[candidate] > energies[-1]:
-                peaks[-1], energies[-1] = peak, integrated[candidate]
-        else:
-            peaks.append(peak)
-            energies.append(integrated[candidate])
-    return np.asarray(peaks, dtype=np.int64)
+    smoothed = savgol_filter(ecg, 7, 2)
+    candidates, properties = find_peaks(smoothed, distance=int(0.25 * SAMPLE_RATE_HZ),
+                                       prominence=0, wlen=int(0.30 * SAMPLE_RATE_HZ) + 1)
+    if not candidates.size:
+        return candidates.astype(np.int64)
+    threshold = 0.45 * float(np.percentile(properties["prominences"], 75))
+    margin = int(0.15 * SAMPLE_RATE_HZ)
+    valid = (properties["prominences"] >= threshold) & (candidates >= margin) & (candidates < ecg.size - margin)
+    return candidates[valid].astype(np.int64)
+
+
+def _measure_beat(ecg: np.ndarray, start: int, stop: int, r: int) -> BeatMeasurement:
+    """Measure local Q/S deflections without assuming a stable zero baseline."""
+    if r - start < 35 or stop - r < 45:
+        return BeatMeasurement(start, stop, r, None, None, None, None, None, None)
+    smooth = savgol_filter(ecg[start:stop], 7, 2)
+    peak = r - start
+    pre = smooth[max(0, peak - 55):peak - 30]
+    noise = float(np.median(np.abs(np.diff(pre)))) if pre.size > 1 else 0.0
+    amplitude = float(smooth[peak] - np.median(pre)) if pre.size else 0.0
+    if amplitude <= 0:
+        return BeatMeasurement(start, stop, r, None, None, None, None, None, None)
+
+    # The last significant negative notch before R is Q; its 10% crossings bound Q.
+    q_onset = q_end = s_onset = s_end = None
+    q_left, q_right = max(0, peak - 50), peak - 5
+    q_candidates, _ = find_peaks(-smooth[q_left:q_right], prominence=max(4 * noise, 0.02 * amplitude))
+    if q_candidates.size:
+        q = q_left + int(q_candidates[-1])
+        before = max(0, q - 25)
+        reference = float(np.max(smooth[before:q]))
+        level = reference - 0.1 * (reference - smooth[q])
+        onset = next((i for i in range(q - 1, before - 1, -1) if smooth[i] >= level), None)
+        end = next((i for i in range(q + 1, peak) if smooth[i] >= level), None)
+        if (onset is not None and end is not None
+                and end - onset <= int(0.08 * SAMPLE_RATE_HZ)
+                and end - q <= int(0.04 * SAMPLE_RATE_HZ)):
+            q_onset, q_end = start + onset, start + end
+
+    # S is the sharp negative deflection after R; use its recovery plateau locally.
+    s = peak + 3 + int(np.argmin(smooth[peak + 3:min(smooth.size, peak + 40)]))
+    recovery = smooth[s + 15:min(smooth.size, s + 35)]
+    if recovery.size and float(np.median(recovery) - smooth[s]) >= max(4 * noise, 0.05 * amplitude):
+        level = float(np.median(recovery))
+        onset = next((i for i in range(s - 1, peak, -1) if smooth[i] >= level), None)
+        end = next((i for i in range(s + 1, min(smooth.size, s + 45)) if smooth[i] >= level), None)
+        if onset is not None and end is not None:
+            s_onset, s_end = start + onset, start + end
+
+    # Without a Q wave, the steep R upstroke supplies the QRS onset.
+    rise = np.diff(smooth[max(0, peak - 35):peak + 1])
+    r_onset = None
+    if rise.size:
+        steepest = int(np.argmax(rise))
+        threshold = 0.12 * float(rise[steepest])
+        if threshold > 0:
+            foot = next((i + 1 for i in range(steepest - 1, -1, -1) if rise[i] <= threshold), None)
+            if foot is not None:
+                r_onset = start + max(0, peak - 35) + foot
+    qrs_onset = q_onset if q_onset is not None else r_onset
+    return BeatMeasurement(start, stop, r, q_onset, q_end, s_onset, s_end,
+                           qrs_onset if s_end is not None else None, s_end if qrs_onset is not None else None)
+
+
+def _calculate_rates(peak_times: np.ndarray) -> tuple[np.ndarray, np.ndarray, float | None]:
+    """Calculate beat-to-beat HR and reject implausible or isolated RR intervals."""
+    intervals = np.diff(peak_times)
+    rates = np.full(intervals.shape, np.nan, dtype=np.float64)
+    plausible = (intervals >= 0.30) & (intervals <= 2.0)
+    for index in np.flatnonzero(plausible):
+        nearby = intervals[max(index - 2, 0):index + 3]
+        nearby = nearby[(nearby >= 0.30) & (nearby <= 2.0)]
+        if nearby.size >= 3:
+            median = float(np.median(nearby))
+            if abs(intervals[index] - median) > 0.30 * median:
+                continue
+        rates[index] = 60.0 / intervals[index]
+    accepted = np.isfinite(rates)
+    average = float(60.0 / np.mean(intervals[accepted])) if np.any(accepted) else None
+    return intervals, rates, average
 
 
 def load_ecg(path: Path) -> EcgData:
@@ -136,8 +235,6 @@ def load_ecg(path: Path) -> EcgData:
     notch_b, notch_a = iirnotch(50.07, 10.0, fs=SAMPLE_RATE_HZ)
     filtered = filtfilt(notch_b, notch_a, filtered)
     peaks = _detect_r_peaks(filtered)
-    peak_times = np.asarray(times)[peaks]
-    intervals = np.diff(peak_times)
-    intervals = intervals[intervals > 0]
-    heart_rate = float(60.0 / np.mean(intervals)) if intervals.size else None
-    return EcgData(np.asarray(times), raw, filtered, peaks, heart_rate)
+    sample_times = np.asarray(times)
+    intervals, rates, heart_rate = _calculate_rates(sample_times[peaks])
+    return EcgData(sample_times, raw, filtered, peaks, intervals, rates, heart_rate)

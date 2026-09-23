@@ -65,16 +65,16 @@ def _save_path(source: Path) -> Path | None:
 
 
 def show_waveforms(data: EcgData, source: Path, output: Path | None = None) -> None:
-    """Display or save the two waveforms using viewport-sized line data."""
-    figure, axes = plt.subplots(2, 1, sharex=True, figsize=(14, 8))
+    """Display or save the ECG and filtered beat-to-beat heart rate."""
+    figure, axes = plt.subplots(3, 1, sharex=True, figsize=(14, 9))
     figure.canvas.manager.set_window_title(f"ECG waveform - {source.name}")
-    figure.subplots_adjust(left=0.09, right=0.78, bottom=0.15, top=0.96, hspace=0.13)
+    figure.subplots_adjust(left=0.09, right=0.78, bottom=0.15, top=0.96, hspace=0.18)
     first, last = float(data.times[0]), float(data.times[-1])
     if first == last:
         last = first + 1 / 500
     lines = []
     for axis, values, label, color in zip(
-        axes, (data.ch2, data.ch4), ("Raw CH2", "Filtered CH4"), ("tab:orange", "tab:red")
+        axes[:2], (data.ch2, data.ch4), ("Raw CH2", "Filtered CH4"), ("tab:orange", "tab:red")
     ):
         line, = axis.plot([], [], color=color, linewidth=0.8)
         lines.append(line)
@@ -83,10 +83,25 @@ def show_waveforms(data: EcgData, source: Path, output: Path | None = None) -> N
         axis.set_xlim(first, last)
         axis.grid(True, alpha=0.3)
         axis.margins(x=0)
-    axes[-1].set_xlabel("Time (s)")
-    peaks_artist = axes[-1].scatter([], [], color="tab:blue", marker="x", s=28, linewidths=1.2, label="R peak", zorder=3)
+    rate_axis = axes[2]
+    valid_rates = data.instantaneous_hr[np.isfinite(data.instantaneous_hr)]
+    if valid_rates.size:
+        low, high = float(np.min(valid_rates)), float(np.max(valid_rates))
+        padding = max((high - low) * 0.1, 5.0)
+        rate_axis.set_ylim(low - padding, high + padding)
+    else:
+        rate_axis.set_ylim(40, 180)
+    rate_axis.set_xlim(first, last)
+    rate_axis.set_ylabel("Heart rate (bpm)")
+    rate_axis.set_xlabel("Time (s)")
+    rate_axis.grid(True, alpha=0.3)
+    rate_axis.margins(x=0)
+    rate_line, = rate_axis.plot([], [], color="tab:blue", linewidth=1.1, marker=".", markersize=3)
+    if not valid_rates.size:
+        rate_axis.text(0.5, 0.5, "No valid RR intervals", ha="center", va="center", transform=rate_axis.transAxes)
+    peaks_artist = axes[1].scatter([], [], color="tab:blue", marker="x", s=28, linewidths=1.2, label="R peak", zorder=3)
     if data.r_peaks.size:
-        axes[-1].legend(loc="upper right")
+        axes[1].legend(loc="upper right")
 
     def refresh() -> None:
         start, end = axes[-1].get_xlim()
@@ -94,6 +109,7 @@ def show_waveforms(data: EcgData, source: Path, output: Path | None = None) -> N
         for line, (times, values) in zip(lines, data.visible(start, end, point_budget)):
             line.set_data(times, values)
         peaks_artist.set_offsets(data.visible_peaks(start, end))
+        rate_line.set_data(*data.visible_heart_rates(start, end))
         figure.canvas.draw_idle()
 
     # Coalesce successive slider events into one waveform refresh per short interval.
@@ -115,7 +131,7 @@ def show_waveforms(data: EcgData, source: Path, output: Path | None = None) -> N
 
     x_slider.on_changed(update_x)
     y_sliders = []
-    for axis, label in zip(axes, ("R", "F")):
+    for axis, label in zip(axes, ("R", "F", "HR")):
         box = axis.get_position()
         slider_axis = figure.add_axes((0.80, box.y0, 0.012, box.height))
         low, high = axis.get_ylim()
@@ -132,8 +148,26 @@ def show_waveforms(data: EcgData, source: Path, output: Path | None = None) -> N
     point_2_button = Button(point_2_axis, "Point 2")
     status = figure.text(0.84, 0.765, "", ha="left", va="top", fontsize=8)
     rate = "N/A" if data.heart_rate is None else f"{data.heart_rate:.1f} bpm"
-    figure.text(0.84, 0.69, f"Heart rate\n{rate}\nR peaks: {data.r_peaks.size}", ha="left", va="top", fontsize=10, weight="bold")
-    measurement = figure.text(0.84, 0.54, "Choose Point 1,\nthen click waveform.", ha="left", va="top", family="monospace", fontsize=8.5)
+    accepted = int(np.count_nonzero(np.isfinite(data.instantaneous_hr)))
+    figure.text(0.84, 0.69, f"Heart rate\n{rate}\nR peaks: {data.r_peaks.size}\nValid RR: {accepted}/{data.rr_intervals.size}", ha="left", va="top", fontsize=10, weight="bold")
+    beat_text = figure.text(0.84, 0.57, "Click near a QRS\non either waveform.", ha="left", va="top", fontsize=9)
+    beat_axis = figure.add_axes((0.84, 0.24, 0.14, 0.15))
+    beat_axis.set_title("Single beat (CH4)", fontsize=9)
+    beat_axis.tick_params(labelsize=7)
+    beat_axis.grid(True, alpha=0.3)
+    beat_line, = beat_axis.plot([], [], color="tab:red", linewidth=1)
+    measurement = figure.text(0.84, 0.21, "Choose Point 1,\nthen click waveform.", ha="left", va="top", family="monospace", fontsize=8)
+    beat_span = axes[1].axvspan(first, first, color="tab:green", alpha=0.09, visible=False)
+    marker_specs = (("QRS start", "qrs_onset", "tab:green"), ("Q end", "q_end", "tab:green"),
+                    ("R", "r", "tab:blue"), ("S start", "s_onset", "tab:purple"),
+                    ("S end", "s_end", "tab:purple"))
+    beat_markers = []
+    for label, _, color in marker_specs:
+        main_line = axes[1].axvline(first, color=color, linestyle="--", linewidth=1, visible=False)
+        main_label = axes[1].text(first, 0.98, label, color=color, fontsize=7, rotation=90,
+                                  va="top", transform=axes[1].get_xaxis_transform(), visible=False)
+        detail_line = beat_axis.axvline(first, color=color, linestyle="--", linewidth=0.8, visible=False)
+        beat_markers.append((main_line, main_label, detail_line))
     cursors = [[axis.axvline(first, color=color, linestyle="--", linewidth=1.4, visible=False) for axis in axes]
                for color in ("crimson", "purple")]
     positions = [None, None]
@@ -152,14 +186,60 @@ def show_waveforms(data: EcgData, source: Path, output: Path | None = None) -> N
         active[0] = index
         update_measurement()
 
+    def show_beat(beat):
+        times = data.times
+        segment = data.ch4[beat.start:beat.stop]
+        beat_line.set_data(times[beat.start:beat.stop], segment)
+        beat_axis.set_xlim(float(times[beat.start]), float(times[beat.stop - 1]))
+        beat_axis.set_ylim(*data.limits(segment))
+        lower, upper = data.limits(segment)
+        padding = max((upper - lower) * 0.1, 1)
+        filter_slider = y_sliders[1]
+        filter_slider.set_val((max(filter_slider.valmin, lower - padding),
+                               min(filter_slider.valmax, upper + padding)))
+        beat_span.set_x(float(times[beat.start]))
+        beat_span.set_width(float(times[beat.stop - 1] - times[beat.start]))
+        beat_span.set_visible(True)
+        for (label, field, _), (main_line, main_label, detail_line) in zip(marker_specs, beat_markers):
+            index = getattr(beat, field)
+            if field == "qrs_onset" and index is None:
+                index = beat.q_onset
+            visible = index is not None
+            for artist in (main_line, main_label, detail_line):
+                artist.set_visible(visible)
+            if visible:
+                position = float(times[index])
+                main_line.set_xdata([position, position])
+                main_label.set_x(position)
+                main_label.set_text("Q/QRS start" if field == "qrs_onset" and beat.qrs_onset is not None and beat.q_onset is not None
+                                    else "Q start" if field == "qrs_onset" and beat.q_onset is not None
+                                    else "S/QRS end" if field == "s_end" and beat.qrs_end is not None else label)
+                detail_line.set_xdata([position, position])
+
+        def duration(start, end):
+            return f"{(times[end] - times[start]) * 1000:.0f} ms" if start is not None and end is not None else "N/A"
+
+        beat_text.set_text(f"R: {times[beat.r]:.3f} s\n"
+                           f"Q width: {duration(beat.q_onset, beat.q_end)}\n"
+                           f"S width: {duration(beat.s_onset, beat.s_end)}\n"
+                           f"QRS width: {duration(beat.qrs_onset, beat.qrs_end)}")
+        figure.canvas.draw_idle()
+
     def place(event):
-        if active[0] is None or event.inaxes not in axes or event.xdata is None:
+        if event.inaxes not in axes or event.xdata is None:
+            return
+        if active[0] is None:
+            if event.inaxes in axes[:2]:
+                beat = data.beat_near(event.xdata)
+                if beat is not None:
+                    show_beat(beat)
             return
         position = data.nearest_time(event.xdata)
         positions[active[0]] = position
         for cursor in cursors[active[0]]:
             cursor.set_xdata([position, position])
             cursor.set_visible(True)
+        active[0] = None
         update_measurement()
 
     def export(_event):
