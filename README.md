@@ -10,6 +10,8 @@
 - `rule/`: project rules and naming conventions.
 - `HeartThirdCore/`: Python CDC ring-buffer receiver, analysis worker and Qt Quick dual-channel HMI; see [host software](HeartThirdCore/README.md). Start with `py -3 HeartThirdCore/user/run.py`.
 - `FilterTools/`: CSV 双通道 FFT 与 Welch PSD 离线分析工具；参见 [频谱分析说明](FilterTools/README.md)。
+- `offLineWave/`: 原始离线四通道波形查看器，作为重构参考保留。
+- `OfflineWaveHandle/`: CH2 原始波形与 CH4 滤波波形查看器；参见 [离线波形说明](OfflineWaveHandle/README.md)。
 
 Open this repository root in VS Code. On Windows, deploy the development tasks with
 `py -3 develop/quick_deploy.py deploy`, then reload the window to show the buttons.
