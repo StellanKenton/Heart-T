@@ -1,4 +1,4 @@
-"""Bounded byte ring shared by the CDC producer and parser consumer."""
+"""Bounded byte ring shared by the TCP producer and parser consumer."""
 from threading import Condition
 
 

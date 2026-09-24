@@ -50,7 +50,7 @@ ApplicationWindow {
                 ColumnLayout {
                     spacing: 4
                     HdText { renderType: Text.NativeRendering; text: "HEART / COSMOS"; color: "#007aff"; font.pixelSize: 11; font.letterSpacing: 3; font.weight: Font.DemiBold }
-                    HdText { renderType: Text.NativeRendering; text: "双通道原始数据 · USB CDC · 500 SPS / 通道"; color: "#697589"; font.pixelSize: 13 }
+                    HdText { renderType: Text.NativeRendering; text: "双通道原始数据 · Wi-Fi TCP · 500 SPS / 通道"; color: "#697589"; font.pixelSize: 13 }
                 }
                 Item { Layout.fillWidth: true }
                 Rectangle {
@@ -70,12 +70,20 @@ ApplicationWindow {
                     spacing: 10
                     RowLayout {
                         Layout.fillWidth: true
+                        HdInput {
+                            id: hostInput
+                            Layout.fillWidth: true
+                            placeholderText: "输入 ESP32-S3 IP 地址"
+                            color: "#25334c"
+                            background: Rectangle { radius: 12; color: "#f2f4f8"; border.color: "#e5e9f0" }
+                        }
                         ComboBox {
                             id: ports
-                            Layout.fillWidth: true
+                            Layout.preferredWidth: 260
                             model: backend.ports
                             textRole: "label"
                             valueRole: "port"
+                            onActivated: hostInput.text = currentValue
                             delegate: ItemDelegate {
                                 width: ports.width
                                 implicitHeight: 40
@@ -88,7 +96,7 @@ ApplicationWindow {
                                     elide: Text.ElideRight
                                 }
                             }
-                            displayText: count ? currentText : "请选择 USB CDC 串口"
+                            displayText: count ? currentText : "发现局域网设备"
                             implicitHeight: 40
                             background: Rectangle { radius: 12; color: "#f2f4f8"; border.color: "#e5e9f0" }
                             contentItem: HdText { renderType: Text.NativeRendering;
@@ -102,7 +110,7 @@ ApplicationWindow {
                             }
                         }
                         SoftButton { text: "刷新"; onClicked: backend.refreshPorts() }
-                        SoftButton { text: "连接"; primary: true; enabled: ports.count > 0; onClicked: { window.paused = false; backend.connectPort(ports.currentValue) } }
+                        SoftButton { text: "连接"; primary: true; enabled: hostInput.text.trim().length > 0; onClicked: { window.paused = false; backend.connectPort(hostInput.text.trim()) } }
                         SoftButton { text: "断开"; onClicked: backend.disconnectPort() }
                         SoftButton { text: window.paused ? "继续显示" : "暂停显示"; onClicked: { window.paused = !window.paused; backend.setPaused(window.paused) } }
                     }
@@ -241,6 +249,45 @@ ApplicationWindow {
             Waveform { paused: window.paused; channel: "CH 01"; subtitle: "通道一"; accent: "#007aff"; samples: window.waveforms.ch1; latest: backend.data.latest1; lowerLimit: backend.axis.lower; upperLimit: backend.axis.upper; autoFit: backend.axis.autoFit }
             Waveform { paused: window.paused; channel: "CH 02"; subtitle: "通道二"; accent: "#af52de"; samples: window.waveforms.ch2; latest: backend.data.latest2; lowerLimit: backend.axis.lower; upperLimit: backend.axis.upper; autoFit: backend.axis.autoFit }
             HdText { renderType: Text.NativeRendering; text: "最近 5 秒 · 第一行滤波 ECG（可切换通道）· 后两行原始 ADC 码    /    暂停仅冻结显示，后台持续接收"; color: "#697589"; font.pixelSize: 11; Layout.alignment: Qt.AlignHCenter }
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 280
+                radius: 22
+                color: "white"
+                border.color: "#e5e9f0"
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 8
+                    HdText { text: "设备日志与命令行 · TCP 45671"; color: "#25334c"; font.pixelSize: 14; font.weight: Font.DemiBold }
+                    HdText { text: backend.consoleStatus; color: "#697589"; font.pixelSize: 12 }
+                    ScrollView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        TextArea {
+                            objectName: "deviceConsole"
+                            readOnly: true
+                            text: backend.consoleText
+                            font.family: "Consolas"
+                            font.pixelSize: 12
+                            color: "#25334c"
+                            wrapMode: TextEdit.NoWrap
+                            selectByMouse: true
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        HdInput {
+                            id: commandInput
+                            Layout.fillWidth: true
+                            placeholderText: "输入 help、status、time、version 或 reboot"
+                            color: "#25334c"
+                            onAccepted: { backend.sendCommand(text); text = "" }
+                        }
+                        SoftButton { text: "发送"; onClicked: { backend.sendCommand(commandInput.text); commandInput.text = "" } }
+                    }
+                }
+            }
         }
     }
 }

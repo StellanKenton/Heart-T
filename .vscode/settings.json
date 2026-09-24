@@ -47,6 +47,54 @@
         "priority": 417,
         "tooltip": "Open an interactive J-Link RTT terminal. Keyboard input is forwarded to RTT."
       }
+    },
+    "Heart-T ESP Build": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Device Tool: ESP Build",
+      "icon": "tools",
+      "statusBar": {
+        "alignment": "left",
+        "text": " ESP Build",
+        "name": "Heart-T ESP Build",
+        "priority": 416,
+        "tooltip": "Run HeartThirdESP ESP Build through Device Tool."
+      }
+    },
+    "Heart-T ESP Flash": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Device Tool: ESP Flash",
+      "icon": "plug",
+      "statusBar": {
+        "alignment": "left",
+        "text": " ESP Flash",
+        "name": "Heart-T ESP Flash",
+        "priority": 415,
+        "tooltip": "Run HeartThirdESP ESP Flash through Device Tool."
+      }
+    },
+    "Heart-T ESP Reset": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Device Tool: ESP Reset",
+      "icon": "debug-restart",
+      "statusBar": {
+        "alignment": "left",
+        "text": " ESP Reset",
+        "name": "Heart-T ESP Reset",
+        "priority": 414,
+        "tooltip": "Run HeartThirdESP ESP Reset through Device Tool."
+      }
+    },
+    "Heart-T ESP Console": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Device Tool: ESP Console",
+      "icon": "terminal",
+      "statusBar": {
+        "alignment": "left",
+        "text": " ESP Console",
+        "name": "Heart-T ESP Console",
+        "priority": 413,
+        "tooltip": "Run HeartThirdESP ESP Console through Device Tool."
+      }
     }
   },
   "C_Cpp.default.compileCommands": "${workspaceFolder}/Heart-T/build/Debug/compile_commands.json",

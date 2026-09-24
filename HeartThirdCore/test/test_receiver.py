@@ -1,4 +1,4 @@
-"""Protocol checks independent of serial hardware."""
+"""Protocol checks independent of network hardware."""
 import unittest
 from receiver import FrameParser, crc8
 

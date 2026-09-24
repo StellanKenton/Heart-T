@@ -13,15 +13,14 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQuickControls2 import QQuickStyle
 
 from domain.analysis import AnalysisThread, SampleStore
-from domain.communication import CommunicationThread
+from domain.communication import CommunicationThread, ConsoleThread
 from domain.ringbuffer import RingBuffer
 from hmi.backend import Backend
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Heart-T 双通道原始数据监视器")
-    parser.add_argument('--port', help='CDC port, e.g. COM25')
-    parser.add_argument('--baud', type=int, default=115200)
+    parser.add_argument('--host', help='ESP32-S3 IP address or hostname')
     parser.add_argument('--quit-after', type=float, help='Exit after N seconds for smoke checks')
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
@@ -29,7 +28,7 @@ def main(argv=None):
     app = QGuiApplication([sys.argv[0]])
     app.setApplicationName('Heart-T')
     app.setOrganizationName('Cosmos')
-    # Repeated launches activate the existing window before opening any serial port.
+    # Repeated launches activate the existing window before opening TCP sockets.
     identity = hashlib.sha256(str(Path(__file__).resolve().parents[1]).lower().encode()).hexdigest()[:16]
     server_name = 'Heart-T-' + identity
     client = QLocalSocket()
@@ -50,9 +49,10 @@ def main(argv=None):
         return 1
     stop = Event()
     ring, store = RingBuffer(), SampleStore()
-    communication = CommunicationThread(ring, stop, args.baud)
+    communication = CommunicationThread(ring, stop)
+    console = ConsoleThread(stop)
     analysis = AnalysisThread(ring, store, stop)
-    backend = Backend(communication, store)
+    backend = Backend(communication, store, console)
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty('backend', backend)
     engine.load(QUrl.fromLocalFile(str(Path(__file__).resolve().parents[1] / 'hmi' / 'main.qml')))
@@ -70,10 +70,12 @@ def main(argv=None):
         window.requestActivate()
 
     server.newConnection.connect(activate_window)
-    if args.port:
-        communication.configure(args.port)
+    if args.host:
+        communication.configure(args.host)
+        console.configure(args.host)
     analysis.start()
     communication.start()
+    console.start()
     if args.quit_after is not None:
         QTimer.singleShot(max(0, int(args.quit_after * 1000)), app.quit)
     try:
@@ -83,4 +85,5 @@ def main(argv=None):
         stop.set()
         ring.close()
         communication.join()
+        console.join()
         analysis.join()

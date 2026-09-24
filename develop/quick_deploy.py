@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import device_tool
+import esp_device_tool
 
 
 SCRIPT_PATH = Path(__file__).resolve()
@@ -120,6 +121,10 @@ def deploy(computer: Optional[str]) -> None:
     upsert_task(tasks, task("Device Tool: Flash", "flash", computer=computer))
     upsert_task(tasks, task("Device Tool: Reset", "reset", computer=computer))
     upsert_task(tasks, task("Device Tool: RTT", "rtt", computer=computer, dedicated=True))
+    upsert_task(tasks, task("Device Tool: ESP Build", "esp-build", computer=computer))
+    upsert_task(tasks, task("Device Tool: ESP Flash", "esp-flash", computer=computer))
+    upsert_task(tasks, task("Device Tool: ESP Reset", "esp-reset", computer=computer))
+    upsert_task(tasks, task("Device Tool: ESP Console", "esp-console", computer=computer, dedicated=True))
     write_json(TASKS_PATH, tasks_json)
 
     settings = load_json(SETTINGS_PATH, {})
@@ -156,6 +161,16 @@ def deploy(computer: Optional[str]) -> None:
         417,
         "Open an interactive J-Link RTT terminal. Keyboard input is forwarded to RTT.",
     )
+    for label, action, icon, priority in [
+        ("ESP Build", "ESP Build", "tools", 416),
+        ("ESP Flash", "ESP Flash", "plug", 415),
+        ("ESP Reset", "ESP Reset", "debug-restart", 414),
+        ("ESP Console", "ESP Console", "terminal", 413),
+    ]:
+        workspace_commands[f"{COMMAND_PREFIX} {label}"] = command(
+            f"{COMMAND_PREFIX} {label}", f"Device Tool: {action}",
+            f" {label}", icon, priority, f"Run HeartThirdESP {label} through Device Tool.",
+        )
     write_json(SETTINGS_PATH, settings)
 
     extensions = load_json(EXTENSIONS_PATH, {"recommendations": []})
@@ -189,6 +204,8 @@ def run_device_tool(action: str, computer: Optional[str]) -> int:
     _, profile = select_profile(computer)
 
     try:
+        if action.startswith("esp-"):
+            return esp_device_tool.run(action[4:], profile)
         if action == "build":
             device_tool.build(profile)
         elif action == "flash":
@@ -373,6 +390,8 @@ def parse_args() -> argparse.Namespace:
         help="Reset target and stream output to this terminal.",
     )
     subparsers.add_parser("rtt", parents=[parent], help="Open interactive RTT terminal.")
+    for action in ("esp-build", "esp-flash", "esp-reset", "esp-console"):
+        subparsers.add_parser(action, parents=[parent], help=f"Run {action} through Device Tool.")
     return parser.parse_args()
 
 

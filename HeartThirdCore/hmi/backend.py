@@ -12,10 +12,15 @@ class Backend(QObject):
     portsChanged = Signal()
     axisChanged = Signal()
     waveformsChanged = Signal()
+    consoleChanged = Signal()
 
-    def __init__(self, communication, store):
+    def __init__(self, communication, store, console=None):
         super().__init__()
         self.communication, self.store = communication, store
+        self.console = console
+        self._console_revision = -1
+        self._console_status = '日志未连接'
+        self._console_text = ''
         self._ports = []
         self._channels = dict(ch1=[], ch2=[], ecg=[])
         self._waveforms = json.dumps(self._channels)
@@ -44,6 +49,14 @@ class Backend(QObject):
     @Property('QVariantMap', notify=axisChanged)
     def axis(self):
         return self._axis
+
+    @Property(str, notify=consoleChanged)
+    def consoleStatus(self):
+        return self._console_status
+
+    @Property(str, notify=consoleChanged)
+    def consoleText(self):
+        return self._console_text
 
     def _fit_axis(self):
         values = self._channels['ch1'] + self._channels['ch2']
@@ -87,10 +100,19 @@ class Backend(QObject):
         if port:
             self._paused = False
             self.communication.configure(port)
+            if self.console is not None:
+                self.console.configure(port)
 
     @Slot()
     def disconnectPort(self):
         self.communication.configure(None)
+        if self.console is not None:
+            self.console.configure(None)
+
+    @Slot(str)
+    def sendCommand(self, command):
+        if self.console is not None:
+            self.console.send_command(command)
 
     @Slot(bool)
     def setPaused(self, paused):
@@ -107,6 +129,13 @@ class Backend(QObject):
 
     @Slot()
     def poll(self):
+        if self.console is not None:
+            revision, status_text, log_text = self.console.snapshot()
+            if revision != self._console_revision:
+                self._console_revision = revision
+                self._console_status = status_text
+                self._console_text = log_text
+                self.consoleChanged.emit()
         snapshot = None if self._paused else self.store.snapshot(self._revision, include_filtered=True)
         status = self.communication.status()
         changed = status != self._data['status']

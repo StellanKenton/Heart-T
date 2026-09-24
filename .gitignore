@@ -1,5 +1,8 @@
 # Prerequisites
 Heart-T/build/
+HeartThirdESP/build/
+HeartThirdESP/sdkconfig
+HeartThirdESP/sdkconfig.old
 __pycache__/
 *.d
 

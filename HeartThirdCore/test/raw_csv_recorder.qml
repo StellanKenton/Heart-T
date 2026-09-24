@@ -72,16 +72,22 @@ ApplicationWindow {
                 spacing: 10
                 RowLayout {
                     Layout.fillWidth: true
+                    TextField {
+                        id: hostInput
+                        Layout.fillWidth: true
+                        placeholderText: "输入 ESP32-S3 IP 地址"
+                    }
                     ComboBox {
                         id: ports
-                        Layout.fillWidth: true
+                        Layout.preferredWidth: 245
                         model: backend.ports
                         textRole: "label"
                         valueRole: "port"
-                        displayText: count ? currentText : "请选择 USB CDC 串口"
+                        displayText: count ? currentText : "发现局域网设备"
+                        onActivated: hostInput.text = currentValue
                     }
                     SoftButton { text: "刷新"; onClicked: backend.refreshPorts() }
-                    SoftButton { text: "连接"; primary: true; enabled: ports.count > 0; onClicked: backend.connectPort(ports.currentValue) }
+                    SoftButton { text: "连接"; primary: true; enabled: hostInput.text.trim().length > 0; onClicked: backend.connectPort(hostInput.text.trim()) }
                     SoftButton { text: "断开"; onClicked: backend.disconnectPort() }
                 }
                 Text { text: backend.data.connectionStatus; color: "#697589"; Layout.fillWidth: true; elide: Text.ElideRight }

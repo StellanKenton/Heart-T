@@ -1,18 +1,18 @@
 # 上位机采集软件
 
-PySide6 / Qt Quick QML 双通道原始 ADC 监视器，采用浅色背景、圆角卡片、蓝紫曲线及高清文字，支持高 DPI。
+PySide6 / Qt Quick QML 双通道原始 ADC 监视器，通过 Wi-Fi TCP 接收 ESP32-S3 的采样并提供设备日志与命令行，支持高 DPI。
 
 | 文件 / 目录 | 职责 |
 | --- | --- |
 | `domain/ringbuffer.py` | 64 KiB 字节环形缓冲，条件变量保护读写；满时阻塞生产者 |
 | `domain/protocol.py` | 33 字节解析、CRC-8、半包 / 粘包恢复及序号统计 |
-| `domain/communication.py` | CDC 通信线程、串口枚举、只接收、自动重连 |
+| `domain/communication.py` | TCP 采样与日志线程、UDP 设备发现、自动重连 |
 | `domain/analysis.py` | 分析线程，从环形缓冲解析；保存最多 2500 对原始采样及同步所选通道滤波采样 |
 | `hmi/backend.py` | 主线程数据桥，每 33 ms 检查新快照；波形与标量状态分离，避免反复转换整段历史 |
 | `hmi/main.qml`、`hmi/waveform.qml`、`hmi/hdtext.qml`、`hmi/hdinput.qml`、`hmi/qmldir` | 界面、原始 / ECG 波形组件及组件注册 |
 | `user/main.py` | 创建通信 / 分析线程，主线程运行 Qt HMI，退出时回收线程 |
 | `user/run.py`、`user/run.bat` | Python 入口及 Windows 双击入口 |
-| `requirements.txt` | PySide6、pyserial 依赖 |
+| `requirements.txt` | PySide6 依赖 |
 | `test/` | 协议 / 管线测试及命令行接收工具 |
 | `core/`、`build/` | 原有预留目录 |
 
@@ -25,13 +25,13 @@ py -3 -m pip install -r HeartThirdCore/requirements.txt
 py -3 HeartThirdCore/user/run.py
 ```
 
-也可双击 `user/run.bat`；入口不依赖工作目录。连接板卡后点击“刷新”，选择 CDC 串口并“连接”。直接指定端口：
+也可双击 `user/run.bat`；入口不依赖工作目录。ESP32-S3 开机会自动连接 Wi-Fi `rumi`。电脑与设备在可互访的局域网中，点击“刷新”发现设备，或直接输入设备 IP 后“连接”。命令行指定目标：
 
 ```powershell
-py -3 HeartThirdCore/user/run.py --port COM25
+py -3 HeartThirdCore/user/run.py --host 192.168.1.50
 ```
 
-替换 COM25 为实际端口。同一项目仅运行一个上位机实例，重复启动会激活已有窗口，不重复打开串口。若提示端口被占用，关闭其他串口工具或旧版本上位机窗口后等待自动重连；Windows 串口只能由一个程序独占打开。断线每秒重连，“断开”停止重连。每次打开串口重建会话，清空历史、统计及残留半包。板卡在串口保持打开时复位，应断开再连接以重建序号基准。
+替换示例 IP 为路由器分配给设备的实际地址。同一项目仅运行一个上位机实例，重复启动会激活已有窗口。采样和日志分别使用 TCP 45670、45671；断线每秒重连，“断开”停止重连。每次建立采样 TCP 连接都重建会话，清空历史、统计及残留半包。日志面板可发送 `help`、`status`、`time`、`version`、`reboot`，与原 RTT 控制台的命令语义一致。UDP 45672 用于设备发现；广播不可达时直接输入 IP。
 
 字体保持原来的 1× 大小；标签和范围输入框使用 2× 字号进行原生栅格化，再以 0.5 缩放显示，提升采样精度而不放大显示字号。两个通道共用纵轴上下限；默认开启“自动 Fit”，根据当前显示的两路数据共同计算范围并预留 10% 边距。关闭自动 Fit 后输入下限、上限并点击“应用”，范围固定直到重新启用自动 Fit。上限必须大于下限，非法输入不会改变当前范围。
 
@@ -39,9 +39,9 @@ py -3 HeartThirdCore/user/run.py --port COM25
 
 ## 数据与线程约定
 
-协议见 [USB 驱动文档](../Heart-T/user/driver/drvusb/drvusb.md)：FA 包头、8 位序号、5 对大端有符号 24 位通道值及 CRC-8/SMBUS，共 33 字节。只读取，不向下位机写数据。
+协议见 [ESP32-S3 工程文档](../HeartThirdESP/README.md)：FA 包头、8 位序号、5 对大端有符号 24 位通道值及 CRC-8/SMBUS，共 33 字节。数据连接只读；命令仅写入独立的日志控制连接。
 
-CDC 通信 → 有界字节环形缓冲 → 分析 / 解析 → 加锁有界采样历史 → Qt 主线程 HMI。GUI 不执行串口读取，后台线程不创建窗口。满缓冲施加背压，长期消费不足仍可能使系统 / 下位机缓冲丢包，序号跳变显示为估计丢帧。
+TCP 通信 → 有界字节环形缓冲 → 分析 / 解析 → 加锁有界采样历史 → Qt 主线程 HMI。GUI 不执行网络读取，后台线程不创建窗口。满缓冲施加背压，长期消费不足仍可能使设备发送队列丢包，序号跳变显示为估计丢帧。
 
 绘图数据每次刷新只传输一份 JSON，由 QML 转为本地 JavaScript 数组；状态绑定只读取标量，不携带整段波形。统计卡片持续复用，自动 Fit 仅在上下限变化时通知输入框。暂停期间不复制采样历史，无新数据时不重复发布。
 
@@ -71,7 +71,7 @@ ECG 在分析线程逐采样滤波，不增加依赖：
 
 静止复测：用户保持姿势，按 `0x00 → 0xEC → 0x00` 依次采集，每段接收窗口 25 秒，采用末尾 10000 点（20 秒）、Hann 窗、相同频谱峰值计算方法。三段分别收到 2500 / 2414 / 2415 帧，序号丢帧与 CRC 错误均为 0；烧录后窗口包含重新启动等待。CH2 的 45–55 Hz 峰值依次为 156680 / 1371791 / 148072 ADC，95–105 Hz 峰值为 207612 / 28339 / 187059 ADC。开启设置减少了 100 Hz 分量，但明显增大 50 Hz 分量；滤波后还存在更明显的基线变化，最终恢复并烧录 0x00。该比较同时改变 RLD 和 PGA 斩波频率，不能单独归因于 RLD 功能，也不能据此确定反馈网络故障。静止段重复主波及其后宽隆起更清楚，但未验证可靠 P/T 标注。原始 NPY 暂存于系统临时目录的 `heart_still_rld_off.npy`、`heart_still_rld_on.npy`、`heart_still_rld_off_repeat.npy`。
 
-当前增益 6、参考 2.42 V，电压换算为 `code * 2.42 / (6 * 8388608)` V；界面仍显示原始码。序号按模 256 比较，重复单独计数，连续丢失 256 包无法识别。序号不检测 ADS 漏采，需看 RTT 的 missed；CRC-8 存在碰撞可能。
+当前增益 6、参考 2.42 V，电压换算为 `code * 2.42 / (6 * 8388608)` V；界面仍显示原始码。序号按模 256 比较，重复单独计数，连续丢失 256 包无法识别。序号不检测 ADS 漏采，需看 TCP 控制台 `status` 的 `missed`；CRC-8 存在碰撞可能。
 
 Qt HMI 使用主线程事件循环，参见 [Qt QGuiApplication 文档](https://doc.qt.io/qtforpython-6/PySide6/QtGui/QGuiApplication.html)。
 
@@ -82,22 +82,30 @@ py -3 -m unittest discover -s HeartThirdCore/test -p test_*.py
 py -3 HeartThirdCore/user/run.py --quit-after 2
 ```
 
-覆盖 CRC、分片、噪声 / 损坏恢复、正负极值、序号回绕、重复 / 丢帧、环形回绕 / 背压 / 关闭唤醒、会话清理、历史容量、模拟串口重连及纵轴 Fit / 手动范围 / 暂停语义。实际 USB 收流需连接板卡验证。
+覆盖 CRC、分片、噪声 / 损坏恢复、正负极值、序号回绕、重复 / 丢帧、环形回绕 / 背压 / 关闭唤醒、会话清理、历史容量、模拟 TCP 重连及纵轴 Fit / 手动范围 / 暂停语义。实际 Wi-Fi 收流需连接板卡验证。
 
 保留命令行工具，复用 `domain/protocol.py`：
 
 ```powershell
-py -3 HeartThirdCore/test/receiver.py COM25 --all
+py -3 HeartThirdCore/test/receiver.py 192.168.1.50 --all
 ```
+
+实机数据流检查（默认连续 20 秒，同时查询设备 `status`）：
+
+```powershell
+py -3 HeartThirdCore/test/hardware_selftest.py 192.168.1.50 --seconds 20
+```
+
+附加 `--reboot` 可检查 TCP `reboot` 命令、重新连接 Wi-Fi 及 UDP 再发现。
 
 ## 原始数据 CSV 采集测试程序
 
-独立测试程序提供串口连接、开始、结束和保存按钮，不影响主分析界面：
+独立测试程序提供 TCP 连接、开始、结束和保存按钮，不影响主分析界面：
 
 ```powershell
 py -3 HeartThirdCore/test/raw_csv_recorder.py
 ```
 
-也可双击 `HeartThirdCore/test/raw_csv_recorder.bat`。连接 CDC 串口后点击“开始”，程序会将每个有效双通道原始采样点持续写入临时 CSV；点击“结束”关闭本段记录，再点击“保存 CSV”选择目标文件。保存前不能开始下一段，避免无提示覆盖尚未保存的数据。
+也可双击 `HeartThirdCore/test/raw_csv_recorder.bat`。连接 ESP32-S3 IP 后点击“开始”，程序会将每个有效双通道原始采样点持续写入临时 CSV；点击“结束”关闭本段记录，再点击“保存 CSV”选择目标文件。保存前不能开始下一段，避免无提示覆盖尚未保存的数据。
 
-CSV 首行为字段名，`record_type` 为 `start`、`sample` 或 `end`。每个 `sample` 行包含从 0 开始的 `sample_index`、按 500 SPS 生成的 `elapsed_ms`、ISO-8601 时间、连接会话号、8 位帧序号、帧内点号及 `ch1_raw` / `ch2_raw`。串口缺帧不会补造采样；应结合帧序号检查连续性。若记录中直接退出，未保存的临时文件路径会写入日志，防止静默丢失。
+CSV 首行为字段名，`record_type` 为 `start`、`sample` 或 `end`。每个 `sample` 行包含从 0 开始的 `sample_index`、按 500 SPS 生成的 `elapsed_ms`、ISO-8601 时间、连接会话号、8 位帧序号、帧内点号及 `ch1_raw` / `ch2_raw`。TCP 断线造成的缺帧不会补造采样；应结合帧序号检查连续性。若记录中直接退出，未保存的临时文件路径会写入日志，防止静默丢失。

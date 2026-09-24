@@ -33,6 +33,13 @@ py -3 develop/quick_deploy.py rtt
 - Reset: reset and run the target via J-Link.
 - RTT: stop existing J-Link server/client processes, start the GDB server, and read the RTT Telnet port. Ctrl+C stops the session.
 
+ESP32-S3 buttons/tasks are `Device Tool: ESP Build`, `ESP Flash`, `ESP Reset`, and
+`ESP Console`; their terminal equivalents are `esp-build`, `esp-flash`,
+`esp-reset`, and `esp-console` through `quick_deploy.py`. Set `HEART_ESP_PORT`
+to the ESP USB port for flash/reset. The TCP console discovers the device by
+UDP, or uses `HEART_ESP_HOST` when set. These ESP actions use the `esp` paths in
+the selected computer profile; the STM32 actions retain their existing entry.
+
 The current firmware does not include SEGGER RTT support. The RTT task is ready,
 but firmware RTT logging must be added before target logs can appear. If RTT
 produces no output with an RTT-enabled firmware, try Reset before reconnecting.
@@ -42,6 +49,7 @@ produces no output with an RTT-enabled firmware, try Reset before reconnecting.
 - `quick_deploy.py`: VS Code deployment and task entry point.
 - `device_tool.py`: build, J-Link operations, and machine detection.
 - `device_tool_config.json`: OS/hostname profiles, tool paths, target, and ports.
+- `esp_device_tool.py`, `run_esp_idf.ps1`: ESP-IDF build/flash/reset and TCP console through Device Tool.
 
 The Windows `computer2` profile matches `WorkStation` and uses:
 

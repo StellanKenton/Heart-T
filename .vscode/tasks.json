@@ -144,6 +144,146 @@
       "options": {
         "cwd": "${workspaceFolder}"
       }
+    },
+    {
+      "label": "Device Tool: ESP Build",
+      "type": "shell",
+      "command": "python3",
+      "windows": {
+        "command": "py",
+        "args": [
+          "-3",
+          "${workspaceFolder}/develop/quick_deploy.py",
+          "esp-build"
+        ]
+      },
+      "osx": {
+        "command": "python3"
+      },
+      "linux": {
+        "command": "python3"
+      },
+      "args": [
+        "${workspaceFolder}/develop/quick_deploy.py",
+        "esp-build"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "Device Tool: ESP Flash",
+      "type": "shell",
+      "command": "python3",
+      "windows": {
+        "command": "py",
+        "args": [
+          "-3",
+          "${workspaceFolder}/develop/quick_deploy.py",
+          "esp-flash"
+        ]
+      },
+      "osx": {
+        "command": "python3"
+      },
+      "linux": {
+        "command": "python3"
+      },
+      "args": [
+        "${workspaceFolder}/develop/quick_deploy.py",
+        "esp-flash"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "Device Tool: ESP Reset",
+      "type": "shell",
+      "command": "python3",
+      "windows": {
+        "command": "py",
+        "args": [
+          "-3",
+          "${workspaceFolder}/develop/quick_deploy.py",
+          "esp-reset"
+        ]
+      },
+      "osx": {
+        "command": "python3"
+      },
+      "linux": {
+        "command": "python3"
+      },
+      "args": [
+        "${workspaceFolder}/develop/quick_deploy.py",
+        "esp-reset"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "Device Tool: ESP Console",
+      "type": "shell",
+      "command": "python3",
+      "windows": {
+        "command": "py",
+        "args": [
+          "-3",
+          "${workspaceFolder}/develop/quick_deploy.py",
+          "esp-console"
+        ]
+      },
+      "osx": {
+        "command": "python3"
+      },
+      "linux": {
+        "command": "python3"
+      },
+      "args": [
+        "${workspaceFolder}/develop/quick_deploy.py",
+        "esp-console"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": false,
+        "showReuseMessage": false
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
     }
   ]
 }

@@ -44,6 +44,10 @@
       "hostnames": [
         "WorkStation"
       ],
+      "esp": {
+        "idf_path": "C:/Users/senki/esp/v5.5.2/esp-idf",
+        "tools_path": "C:/Users/senki/.espressif"
+      },
       "build": {
         "type": "cmake",
         "source_dir": "Heart-T",

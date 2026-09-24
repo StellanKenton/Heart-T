@@ -3,11 +3,13 @@ import QtQuick.Controls
 
 Item {
     id: root
+    signal accepted()
     property font font: Qt.font({family: Qt.platform.os === "windows" ? "Microsoft YaHei UI" : "Helvetica Neue", pixelSize: 13})
     property alias text: field.text
     property alias color: field.color
     property alias selectByMouse: field.selectByMouse
     property alias inputMethodHints: field.inputMethodHints
+    property alias placeholderText: field.placeholderText
     property alias background: field.background
     property int renderType: TextInput.NativeRendering
     readonly property bool editing: field.activeFocus
@@ -16,6 +18,7 @@ Item {
 
     TextField {
         id: field
+        onAccepted: root.accepted()
         objectName: "editor"
         width: root.width * 2
         height: root.height * 2

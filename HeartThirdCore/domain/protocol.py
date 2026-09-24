@@ -1,4 +1,4 @@
-"""Heart-T 33-byte CDC protocol; signed 24-bit samples and CRC-8/SMBUS."""
+"""Heart-T 33-byte sample protocol; signed 24-bit samples and CRC-8/SMBUS."""
 HEADER = 0xFA
 FRAME_SIZE = 33
 SAMPLES_PER_FRAME = 5

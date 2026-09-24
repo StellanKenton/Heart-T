@@ -1,4 +1,4 @@
-"""Exercise bounded buffering, worker lifecycle and serial reconnection."""
+"""Exercise bounded buffering, worker lifecycle and TCP reconnection."""
 import math
 import sys
 import time
@@ -156,13 +156,13 @@ class PipelineTests(unittest.TestCase):
             worker.join(1)
         self.assertFalse(worker.is_alive())
 
-    def test_cdc_read_and_reconnect(self):
+    def test_tcp_read_and_reconnect(self):
         ring, store, stop = RingBuffer(), SampleStore(channel=0), Event()
         communication = CommunicationThread(ring, stop)
         analysis = AnalysisThread(ring, store, stop)
         sessions = []
 
-        class FakeSerial:
+        class FakeSocket:
             def __init__(self, *args, **kwargs):
                 self.remaining = bytearray(frame(17))
                 sessions.append(self)
@@ -170,23 +170,24 @@ class PipelineTests(unittest.TestCase):
                 return self
             def __exit__(self, *args):
                 self.closed = True
-            @property
-            def in_waiting(self):
-                return min(len(self.remaining), 4)
-            def read(self, count):
-                result = bytes(self.remaining[:count])
-                del self.remaining[:count]
+            def settimeout(self, value):
+                pass
+            def recv(self, count):
+                result = bytes(self.remaining[:4])
+                del self.remaining[:4]
                 if not result:
+                    import socket
                     stop.wait(0.01)
+                    raise socket.timeout()
                 return result
 
-        with patch('domain.communication.serial.Serial', FakeSerial):
+        with patch('domain.communication.socket.create_connection', FakeSocket):
             analysis.start()
-            communication.configure('COM_TEST')
+            communication.configure('host-one')
             communication.start()
             try:
                 self.assertTrue(wait_for(lambda: store.snapshot()[2]['frames'] == 1))
-                communication.configure('COM_TEST_2')
+                communication.configure('host-two')
                 self.assertTrue(wait_for(lambda: len(sessions) == 2))
                 self.assertTrue(wait_for(lambda: store.snapshot()[2]['frames'] == 1
                                         and len(store.snapshot()[1]) == 5))

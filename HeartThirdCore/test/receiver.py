@@ -1,6 +1,7 @@
-"""Receive Heart-T ADC frames without transmitting any serial data."""
+"""Receive HeartThirdESP ADC frames over Wi-Fi TCP."""
 import argparse
 import time
+import socket
 
 import sys
 from pathlib import Path
@@ -11,19 +12,22 @@ from domain.protocol import FrameParser, SAMPLES_PER_FRAME, crc8
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("port", help="USB CDC port, e.g. COM25")
-    parser.add_argument("--baud", type=int, default=115200,
-                        help="CDC line coding only; does not change USB speed")
+    parser.add_argument("host", help="ESP32-S3 IP address or hostname")
     parser.add_argument("--all", action="store_true", help="display every sample pair")
     args = parser.parse_args()
-    import serial
-
     decoder = FrameParser()
     report_time = time.monotonic()
     try:
-        with serial.Serial(args.port, args.baud, timeout=0.1) as port:
+        with socket.create_connection((args.host, 45670), timeout=3) as port:
+            port.settimeout(0.2)
             while True:
-                frames = decoder.feed(port.read(min(max(port.in_waiting, 1), 4096)))
+                try:
+                    chunk = port.recv(4096)
+                except socket.timeout:
+                    continue
+                if not chunk:
+                    raise ConnectionError('Device closed TCP connection')
+                frames = decoder.feed(chunk)
                 for sequence, samples in frames:
                     if args.all:
                         for index, (ch1, ch2) in enumerate(samples):
@@ -36,8 +40,8 @@ def main():
                         report_time = time.monotonic()
     except KeyboardInterrupt:
         pass
-    except serial.SerialException as error:
-        parser.exit(1, f"Serial error: {error}; reopen the receiver after reconnecting the device.\n")
+    except OSError as error:
+        parser.exit(1, f"TCP error: {error}; reconnect to the ESP32-S3.\n")
 
 
 if __name__ == "__main__":

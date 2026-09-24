@@ -175,7 +175,7 @@ class RecorderAnalysisThread(Thread):
 
 
 class RecorderBackend(QObject):
-    """GUI-thread bridge for serial selection and recorder controls."""
+    """GUI-thread bridge for TCP target selection and recorder controls."""
 
     updated = Signal()
     portsChanged = Signal()
@@ -271,8 +271,7 @@ class RecorderBackend(QObject):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Heart-T 双通道原始数据 CSV 采集测试程序')
-    parser.add_argument('--port', help='CDC port, e.g. COM25')
-    parser.add_argument('--baud', type=int, default=115200)
+    parser.add_argument('--host', help='ESP32-S3 IP address or hostname')
     parser.add_argument('--quit-after', type=float, help='Exit after N seconds for smoke checks')
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
@@ -282,7 +281,7 @@ def main(argv=None):
     stop = Event()
     ring = RingBuffer()
     recorder = RawCsvRecorder()
-    communication = CommunicationThread(ring, stop, args.baud)
+    communication = CommunicationThread(ring, stop)
     analysis = RecorderAnalysisThread(ring, recorder, stop)
     backend = RecorderBackend(communication, recorder)
     engine = QQmlApplicationEngine()
@@ -290,8 +289,8 @@ def main(argv=None):
     engine.load(QUrl.fromLocalFile(str(Path(__file__).with_suffix('.qml'))))
     if not engine.rootObjects():
         return 1
-    if args.port:
-        communication.configure(args.port)
+    if args.host:
+        communication.configure(args.host)
     analysis.start()
     communication.start()
     if args.quit_after is not None:
