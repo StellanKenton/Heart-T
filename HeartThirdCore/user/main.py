@@ -14,6 +14,7 @@ from PySide6.QtQuickControls2 import QQuickStyle
 
 from domain.analysis import AnalysisThread, SampleStore
 from domain.communication import CommunicationThread, ConsoleThread
+from domain.recording import RawCsvRecorder
 from domain.ringbuffer import RingBuffer
 from hmi.backend import Backend
 
@@ -49,10 +50,11 @@ def main(argv=None):
         return 1
     stop = Event()
     ring, store = RingBuffer(), SampleStore()
+    recorder = RawCsvRecorder()
     communication = CommunicationThread(ring, stop)
     console = ConsoleThread(stop)
-    analysis = AnalysisThread(ring, store, stop)
-    backend = Backend(communication, store, console)
+    analysis = AnalysisThread(ring, store, stop, recorder)
+    backend = Backend(communication, store, console, recorder)
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty('backend', backend)
     engine.load(QUrl.fromLocalFile(str(Path(__file__).resolve().parents[1] / 'hmi' / 'main.qml')))
@@ -87,3 +89,4 @@ def main(argv=None):
         communication.join()
         console.join()
         analysis.join()
+        recorder.close()

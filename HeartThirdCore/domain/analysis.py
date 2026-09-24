@@ -131,9 +131,10 @@ class SampleStore:
 
 
 class AnalysisThread(Thread):
-    def __init__(self, ring, store, stop):
+    def __init__(self, ring, store, stop, recorder=None):
         super().__init__(name="analysis")
         self.ring, self.store, self.stop = ring, store, stop
+        self.recorder = recorder
 
     def run(self):
         session = None
@@ -144,4 +145,7 @@ class AnalysisThread(Thread):
             if reset:
                 session, parser = current, FrameParser()
             if data or reset:
-                self.store.publish(parser, parser.feed(data), reset)
+                frames = parser.feed(data)
+                self.store.publish(parser, frames, reset)
+                if self.recorder is not None:
+                    self.recorder.publish(parser, frames, reset)

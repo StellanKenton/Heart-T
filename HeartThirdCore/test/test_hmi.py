@@ -1,5 +1,6 @@
 """Verify shared fitting, manual range validation and display pause semantics."""
 import json
+import tempfile
 import sys
 import unittest
 from pathlib import Path
@@ -7,10 +8,11 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication, QUrl
 from PySide6.QtTest import QSignalSpy
 from domain.analysis import SampleStore
 from domain.protocol import FrameParser
+from domain.recording import RawCsvRecorder
 from hmi.backend import Backend
 from test_receiver import frame
 
@@ -99,6 +101,22 @@ class AxisTests(unittest.TestCase):
         self.assertEqual(waves.count(), 2)
         revision = self.store.snapshot()[0]
         self.assertIsNone(self.store.snapshot(revision))
+
+    def test_main_window_recording_controls_export_csv(self):
+        with tempfile.TemporaryDirectory() as directory:
+            recorder = RawCsvRecorder(directory)
+            with patch('hmi.backend.available_ports', return_value=[]):
+                backend = Backend(self.backend.communication, self.store, recorder=recorder)
+            backend.timer.stop()
+            self.assertTrue(backend.startRecording())
+            recorder.publish(None, [(7, [(12, -34)])])
+            backend.poll()
+            self.assertEqual(backend.recordingData['sampleCount'], 1)
+            self.assertTrue(backend.stopRecording())
+            destination = Path(directory) / 'export.csv'
+            self.assertTrue(backend.saveCsv(QUrl.fromLocalFile(str(destination))))
+            self.assertTrue(destination.is_file())
+            self.assertFalse(backend.recordingData['canSave'])
 
 
 if __name__ == '__main__':

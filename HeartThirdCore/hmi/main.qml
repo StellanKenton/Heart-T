@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 ApplicationWindow {
@@ -15,6 +16,15 @@ ApplicationWindow {
     font.family: Qt.platform.os === "windows" ? "Microsoft YaHei UI" : "Helvetica Neue"
     property bool paused: false
     property var waveforms: JSON.parse(backend.waveforms)
+
+    FileDialog {
+        id: saveDialog
+        title: "导出双通道原始数据"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["CSV 文件 (*.csv)"]
+        currentFile: backend.suggestedFileName
+        onAccepted: backend.saveCsv(selectedFile)
+    }
 
     component SoftButton: Button {
         id: control
@@ -134,6 +144,50 @@ ApplicationWindow {
                             HdText { renderType: Text.NativeRendering; text: modelData; color: "#697589"; font.pixelSize: 11 }
                             HdText { renderType: Text.NativeRendering; text: [backend.data.frames, backend.data.missing, backend.data.crc, backend.data.duplicates][index]; color: "#25334c"; font.pixelSize: 22; font.weight: Font.DemiBold }
                         }
+                    }
+                }
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 116
+                radius: 22
+                color: "white"
+                border.color: "#e5e9f0"
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 8
+                    RowLayout {
+                        Layout.fillWidth: true
+                        SoftButton {
+                            text: "开始录制"
+                            primary: true
+                            enabled: !backend.recordingData.recording && !backend.recordingData.canSave
+                            onClicked: backend.startRecording()
+                        }
+                        SoftButton {
+                            text: "结束录制"
+                            enabled: backend.recordingData.recording
+                            onClicked: backend.stopRecording()
+                        }
+                        SoftButton {
+                            text: "导出 CSV"
+                            enabled: backend.recordingData.canSave
+                            onClicked: saveDialog.open()
+                        }
+                        HdText {
+                            text: "已记录 " + backend.recordingData.sampleCount + " 对原始采样"
+                            color: "#25334c"
+                            font.pixelSize: 13
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    HdText {
+                        Layout.fillWidth: true
+                        text: backend.recordingData.message || "录制所有收到的原始采样；结束后导出 CSV，暂停显示不影响录制。"
+                        color: "#697589"
+                        font.pixelSize: 12
+                        elide: Text.ElideMiddle
                     }
                 }
             }

@@ -6,9 +6,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from raw_csv_recorder import CSV_HEADER, RawCsvRecorder
+from domain.recording import CSV_HEADER, RawCsvRecorder
 
 
 class RawCsvRecorderTests(unittest.TestCase):

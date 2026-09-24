@@ -1,6 +1,8 @@
 """Exercise bounded buffering, worker lifecycle and TCP reconnection."""
 import math
+import csv
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -11,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from domain.analysis import AnalysisThread, EcgFilter, SampleStore
 from domain.communication import CommunicationThread
+from domain.recording import RawCsvRecorder
 from domain.ringbuffer import RingBuffer
 from test_receiver import frame
 
@@ -116,6 +119,31 @@ class EcgFilterTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
+    def test_main_analysis_records_beyond_display_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ring, store, stop = RingBuffer(), SampleStore(capacity=5), Event()
+            recorder = RawCsvRecorder(directory)
+            worker = AnalysisThread(ring, store, stop, recorder)
+            self.assertTrue(recorder.start())
+            worker.start()
+            try:
+                ring.write(frame(10) + frame(11) + frame(12))
+                self.assertTrue(wait_for(lambda: recorder.snapshot()['sampleCount'] == 15))
+                self.assertEqual(len(store.snapshot()[1]), 5)
+                self.assertTrue(recorder.stop())
+                destination = Path(directory) / 'main_export.csv'
+                self.assertTrue(recorder.save(destination))
+                with destination.open(encoding='utf-8-sig', newline='') as handle:
+                    rows = list(csv.DictReader(handle))
+                self.assertEqual(len([row for row in rows if row['record_type'] == 'sample']), 15)
+                self.assertEqual([rows[index]['frame_sequence'] for index in (1, 6, 11)],
+                                 ['10', '11', '12'])
+            finally:
+                stop.set()
+                ring.close()
+                worker.join(1)
+                recorder.close()
+
     def test_wrap_backpressure_and_close(self):
         ring = RingBuffer(7)
         payload = bytes(range(100))

@@ -1,10 +1,14 @@
 """GUI-thread bridge; poll worker snapshots without queuing every sample."""
 import json
+import logging
 import math
+from datetime import datetime
 
-from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, Property, QTimer, QUrl, Signal, Slot
 
 from domain.communication import available_ports
+
+LOG = logging.getLogger(__name__)
 
 
 class Backend(QObject):
@@ -13,11 +17,17 @@ class Backend(QObject):
     axisChanged = Signal()
     waveformsChanged = Signal()
     consoleChanged = Signal()
+    recordingChanged = Signal()
 
-    def __init__(self, communication, store, console=None):
+    def __init__(self, communication, store, console=None, recorder=None):
         super().__init__()
         self.communication, self.store = communication, store
         self.console = console
+        self.recorder = recorder
+        self._recording_data = recorder.snapshot() if recorder is not None else dict(
+            revision=0, recording=False, canSave=False, sampleCount=0, tempPath='')
+        self._recording_data['message'] = ''
+        self._recording_revision = self._recording_data['revision']
         self._console_revision = -1
         self._console_status = '日志未连接'
         self._console_text = ''
@@ -57,6 +67,61 @@ class Backend(QObject):
     @Property(str, notify=consoleChanged)
     def consoleText(self):
         return self._console_text
+
+    @Property('QVariantMap', notify=recordingChanged)
+    def recordingData(self):
+        return self._recording_data
+
+    @Property(str, constant=True)
+    def suggestedFileName(self):
+        return 'heart_raw_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '.csv'
+
+    def _recording_message(self, message):
+        self._recording_data['message'] = message
+        self.recordingChanged.emit()
+
+    @Slot(result=bool)
+    def startRecording(self):
+        if self.recorder is None:
+            return False
+        try:
+            started = self.recorder.start()
+        except OSError as error:
+            LOG.error('Cannot start CSV recording: %s', error)
+            self._recording_message(f'录制失败：{error}')
+            return False
+        self.poll()
+        self._recording_message('正在记录双通道原始采样' if started else '请先导出上一段记录')
+        return started
+
+    @Slot(result=bool)
+    def stopRecording(self):
+        if self.recorder is None:
+            return False
+        stopped = self.recorder.stop()
+        self.poll()
+        self._recording_message('录制已结束，请导出 CSV' if stopped else '当前没有正在录制的数据')
+        return stopped
+
+    @Slot(QUrl, result=bool)
+    def saveCsv(self, url):
+        if self.recorder is None:
+            return False
+        path = url.toLocalFile()
+        if not path:
+            self._recording_message('导出路径无效')
+            return False
+        if not path.lower().endswith('.csv'):
+            path += '.csv'
+        try:
+            saved = self.recorder.save(path)
+        except OSError as error:
+            LOG.error('Cannot export CSV: %s', error)
+            self._recording_message(f'导出失败：{error}')
+            return False
+        self.poll()
+        self._recording_message(f'已导出：{path}' if saved else '请先结束录制')
+        return saved
 
     def _fit_axis(self):
         values = self._channels['ch1'] + self._channels['ch2']
@@ -129,6 +194,13 @@ class Backend(QObject):
 
     @Slot()
     def poll(self):
+        if self.recorder is not None:
+            recording = self.recorder.snapshot()
+            if recording['revision'] != self._recording_revision:
+                self._recording_revision = recording['revision']
+                recording['message'] = self._recording_data['message']
+                self._recording_data = recording
+                self.recordingChanged.emit()
         if self.console is not None:
             revision, status_text, log_text = self.console.snapshot()
             if revision != self._console_revision:
