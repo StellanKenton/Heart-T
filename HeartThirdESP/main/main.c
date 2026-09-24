@@ -63,8 +63,10 @@ static eConsoleCommandResult mainStatus(const char *arguments) {
           transportSensorMode(), transportWifiConnected() ? "connected" : "disconnected", lIp[0] ? lIp : "none",
           (unsigned long)systemGetTickMs(), (unsigned long)lStats.sampleCount,
           (unsigned long)lStats.missedCount, (unsigned long)transportDroppedSamples());
-    LOG_I("sysdebug", "rld=%s breath=%s",
-          strcmp(transportSensorMode(), "NORMAL") == 0 ? "on" : "unavailable",
+    LOG_I("sysdebug", "rld=%s RLD_SENS=0x%02X breath=%s",
+          strcmp(transportSensorMode(), "NORMAL") == 0 ?
+              ((transportRldSense() & ADS1292R_RLD_POWER) != 0U ? "on" : "off") : "unavailable",
+          (unsigned)transportRldSense(),
           transportBreathEnabled() ? "on" : "off");
     return CONSOLE_COMMAND_RESULT_OK;
 }
@@ -88,6 +90,25 @@ static eConsoleCommandResult mainBreath(const char *arguments) {
     return CONSOLE_COMMAND_RESULT_OK;
 }
 
+/** @brief Request RLD switching without changing PGA chopping or channel gains. */
+static eConsoleCommandResult mainRld(const char *arguments) {
+    bool lEnabled;
+    if (strcmp(arguments, "on") == 0) {
+        lEnabled = true;
+    } else if (strcmp(arguments, "off") == 0) {
+        lEnabled = false;
+    } else {
+        LOG_W("sysdebug", "usage: rld on|off");
+        return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+    }
+    if (!transportSetRld(lEnabled)) {
+        LOG_E("sysdebug", "rld request failed; sensor unavailable or request queue full");
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+    LOG_I("sysdebug", "rld %s requested", lEnabled ? "on" : "off");
+    return CONSOLE_COMMAND_RESULT_OK;
+}
+
 static const stConsoleCommand gCommands[] = {
     {"reboot", "Restart HeartThirdESP", mainReboot},
     {"time", "Show uptime in milliseconds", mainTime},
@@ -95,6 +116,7 @@ static const stConsoleCommand gCommands[] = {
     {"version", "Show firmware and hardware versions", mainVersion},
     {"status", "Show Wi-Fi and acquisition counters", mainStatus},
     {"breath", "Enable or disable CH1 respiration carrier: breath on|off", mainBreath},
+    {"rld", "Enable or disable CH2 right leg drive: rld on|off", mainRld},
 };
 
 /** @brief Initialize logging and command handlers before network tasks run. */

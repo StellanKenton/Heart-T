@@ -1,0 +1,174 @@
+{
+  "date": "2026-09-24",
+  "board": "ESP32-S3 MAC f0:9e:9e:04:9a:0c",
+  "firmware": "V1.0.1",
+  "power": "Battery; user confirmed USB removed before acquisition",
+  "conditions": {
+    "order": [
+      "off_before",
+      "on",
+      "off_after"
+    ],
+    "rld_sens": [
+      "0xC0",
+      "0xEC",
+      "0xC0"
+    ],
+    "gain_ch1_ch2": [
+      6,
+      6
+    ],
+    "respiration": false,
+    "pga_chop": "fMOD/4",
+    "nominal_sps": 500
+  },
+  "method": {
+    "capture_seconds": 26,
+    "analysis": "Last 10000 simultaneous pairs per capture, raw signed ADC codes, remove mean per channel, numpy.hanning(10000), rfft",
+    "peak_amplitude": "max(2*abs(rfft)/sum(window)) within each inclusive frequency band",
+    "band_rms": "sqrt(2*sum(abs(rfft[band])**2)/(10000*sum(window**2)))",
+    "clip_threshold_abs_adc": 8388600,
+    "frequency_caveat": "Frequency axis assumes nominal 500 SPS; internal oscillator causes actual rate near 499 SPS. Band RMS is less sensitive than single-bin amplitude to leakage and drift.",
+    "settling": "Analyzed window begins more than 6 seconds after each data connection; both switches were verified before connection."
+  },
+  "raw_file": "rld_measurement_20260924.npz",
+  "raw_sha256": "702d4e53a3299e7ecfd3f569548d56b1aae75e4b5593f3110c1411f3b1db013a",
+  "raw_layout": "npz keys off_before/on/off_after; int32 rows of simultaneous CH1, CH2 pairs, including initial samples excluded from analysis",
+  "firmware_missed_counter": "0 throughout all three captures, checked through Device Tool ESP Console",
+  "captures": [
+    {
+      "label": "off_before",
+      "samples": 12985,
+      "frames": 2597,
+      "missing_frames": 0,
+      "crc_errors": 0,
+      "sequence_errors": 0,
+      "seconds": 26.02956210001139,
+      "analysis_samples": 10000,
+      "channels": [
+        {
+          "min": -49909,
+          "max": -4771,
+          "std": 10053.625393852626,
+          "clip_count": 0,
+          "peak_45_55": {
+            "hz": 50.1,
+            "adc": 13935.711779736524,
+            "band_rms_adc": 9871.881912192604
+          },
+          "peak_95_105": {
+            "hz": 100.2,
+            "adc": 506.9698585323922,
+            "band_rms_adc": 363.1875095083282
+          }
+        },
+        {
+          "min": 44486,
+          "max": 214766,
+          "std": 28290.918915662693,
+          "clip_count": 0,
+          "peak_45_55": {
+            "hz": 50.1,
+            "adc": 33835.66783065948,
+            "band_rms_adc": 24008.451977214332
+          },
+          "peak_95_105": {
+            "hz": 100.2,
+            "adc": 13989.086210317653,
+            "band_rms_adc": 10092.371956026587
+          }
+        }
+      ]
+    },
+    {
+      "label": "on",
+      "samples": 12985,
+      "frames": 2597,
+      "missing_frames": 0,
+      "crc_errors": 0,
+      "sequence_errors": 0,
+      "seconds": 26.03296519999276,
+      "analysis_samples": 10000,
+      "channels": [
+        {
+          "min": -96219,
+          "max": 39033,
+          "std": 41712.7178947354,
+          "clip_count": 0,
+          "peak_45_55": {
+            "hz": 50.150000000000006,
+            "adc": 53935.92040137524,
+            "band_rms_adc": 41653.568559054176
+          },
+          "peak_95_105": {
+            "hz": 100.25,
+            "adc": 1630.442115232348,
+            "band_rms_adc": 1292.663100041367
+          }
+        },
+        {
+          "min": 131699,
+          "max": 285886,
+          "std": 44257.79756854156,
+          "clip_count": 0,
+          "peak_45_55": {
+            "hz": 50.150000000000006,
+            "adc": 57033.68076409142,
+            "band_rms_adc": 44043.56802110517
+          },
+          "peak_95_105": {
+            "hz": 100.25,
+            "adc": 1653.3721830254003,
+            "band_rms_adc": 1310.6187892419462
+          }
+        }
+      ]
+    },
+    {
+      "label": "off_after",
+      "samples": 12985,
+      "frames": 2597,
+      "missing_frames": 0,
+      "crc_errors": 0,
+      "sequence_errors": 0,
+      "seconds": 26.020815600000788,
+      "analysis_samples": 10000,
+      "channels": [
+        {
+          "min": -57007,
+          "max": 2546,
+          "std": 14134.32316593537,
+          "clip_count": 0,
+          "peak_45_55": {
+            "hz": 50.1,
+            "adc": 16841.873282032433,
+            "band_rms_adc": 13956.340973723989
+          },
+          "peak_95_105": {
+            "hz": 100.25,
+            "adc": 562.5407224108639,
+            "band_rms_adc": 406.2598352963675
+          }
+        },
+        {
+          "min": 35776,
+          "max": 216953,
+          "std": 28533.567045383566,
+          "clip_count": 0,
+          "peak_45_55": {
+            "hz": 50.1,
+            "adc": 30816.64440617781,
+            "band_rms_adc": 25601.344846966495
+          },
+          "peak_95_105": {
+            "hz": 100.25,
+            "adc": 12157.267975418648,
+            "band_rms_adc": 8923.351025005624
+          }
+        }
+      ]
+    }
+  ],
+  "final_state": "NORMAL, RLD off 0xC0, breath off",
+  "conclusion": "RLD enabled increased CH2 45-55 Hz band RMS relative to both off captures. Keeping RLD off mitigates 50 Hz interference but increases the 100 Hz component. Analog root cause remains unverified."
+}

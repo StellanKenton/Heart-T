@@ -230,9 +230,9 @@ def load_ecg(path: Path) -> EcgData:
         raise ValueError("At least 32 valid CH2 samples are required for filtering")
 
     raw = np.asarray(samples, dtype=np.float64)
-    sos = butter(4, (0.5, 40.0), btype="bandpass", fs=SAMPLE_RATE_HZ, output="sos")
+    sos = butter(4, (0.5, 35.0), btype="bandpass", fs=SAMPLE_RATE_HZ, output="sos")
     filtered = sosfiltfilt(sos, raw)
-    notch_b, notch_a = iirnotch(50.07, 10.0, fs=SAMPLE_RATE_HZ)
+    notch_b, notch_a = iirnotch(50.07, 40.0, fs=SAMPLE_RATE_HZ)
     filtered = filtfilt(notch_b, notch_a, filtered)
     peaks = _detect_r_peaks(filtered)
     sample_times = np.asarray(times)

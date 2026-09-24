@@ -24,6 +24,10 @@ extern "C" {
 typedef struct stHeartFrame {
     uint8_t bytes[HEART_FRAME_SIZE];
 } stHeartFrame;
+typedef struct stHeartConfigRequest {
+    bool rld;
+    bool enabled;
+} stHeartConfigRequest;
 bool transportStart(void);
 void transportQueueSample(const int32_t channel[2]);
 uint32_t transportDroppedSamples(void);
@@ -31,6 +35,8 @@ bool transportWifiConnected(void);
 const char *transportSensorMode(void);
 bool transportSetBreath(bool enabled);
 bool transportBreathEnabled(void);
+bool transportSetRld(bool enabled);
+uint8_t transportRldSense(void);
 void transportGetIp(char *buffer, uint32_t size);
 void transportFlushLogs(void);
 /* Called from the GPIO DRDY interrupt after the converter edge counter updates. */

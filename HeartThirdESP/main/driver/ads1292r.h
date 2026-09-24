@@ -50,6 +50,9 @@ extern "C" {
 #define ADS1292R_CMD_WREG           0x40U
 #define ADS1292R_POWER_UP_MS        1000U
 #define ADS1292R_REFERENCE_MS       200U
+#define ADS1292R_RLD_OFF            0xC0U
+#define ADS1292R_RLD_CH2            0xECU
+#define ADS1292R_RLD_POWER          0x20U
 
 typedef enum eAds1292rRate {
     ADS1292R_RATE_125 = 0, ADS1292R_RATE_250, ADS1292R_RATE_500,
@@ -72,7 +75,7 @@ typedef struct stAds1292rConfig {
     bool respiration;
     uint8_t respirationPhase; /* 0..15 in 11.25-degree steps, 32 kHz modulation. */
     bool leadOff;
-    uint8_t rldSense; /* RLD_SENS register; default 0xEC enables CH2-based RLD. */
+    uint8_t rldSense; /* Default RLD off; both modes retain fMOD/4 PGA chopping. */
 } stAds1292rConfig;
 
 typedef struct stAds1292rSample {

@@ -66,3 +66,7 @@ The macOS profile retains its own tool locations and has not been validated on t
 ## USB reset self-test
 
 `usb_selftest_result.json` records the Windows USB CDC hardware test: before reset and after three Device Tool resets, COM25 was reopened and binary echo passed. The monitor recorded COM25 disappearing and reappearing on each reset. Existing serial handles must be closed and reopened after USB disconnect.
+
+## ESP RLD battery comparison
+
+`rld_measurement_20260924.json` records the V1.0.1 battery-powered `0xC0 -> 0xEC -> 0xC0` comparison, acquisition checks, metric definitions and final state. `rld_measurement_20260924.npz` preserves all raw CH1/CH2 pairs under keys `off_before`, `on`, and `off_after`. Each analysis uses the last 10000 pairs and a Hann window; values are raw ADC codes. RLD off reduced CH2 50 Hz band RMS but increased its 100 Hz component. Analog feedback circuitry remains unverified.

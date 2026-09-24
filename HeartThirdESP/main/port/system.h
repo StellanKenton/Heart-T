@@ -11,7 +11,7 @@ extern "C" {
 #endif
 #define SYSTEM_OK 1
 #define FIRMWARE_NAME "HeartThirdESP"
-#define FIRMWARE_VERSION "V1.0.0"
+#define FIRMWARE_VERSION "V1.0.1"
 #define HARDWARE_VERSION "ESP32-S3"
 uint32_t systemGetTickMs(void);
 int8_t systemDelayMs(uint32_t delayMs);
