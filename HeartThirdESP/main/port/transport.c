@@ -22,11 +22,13 @@
 #include <string.h>
 
 static QueueHandle_t gFrameQueue;
+static QueueHandle_t gBreathRequest;
 static esp_netif_t *gStation;
 static volatile bool gWifiConnected;
 static volatile bool gDataConnected;
 static volatile bool gSensorReady;
 static volatile bool gSensorFault;
+static volatile bool gBreathEnabled;
 static int gConsoleClient = -1;
 static TaskHandle_t gAcquisitionTask;
 static uint32_t gDroppedSamples;
@@ -101,6 +103,16 @@ bool transportWifiConnected(void) {
 /** @brief Report the same INIT/NORMAL/FAULT sensor states as the STM32 build. */
 const char *transportSensorMode(void) {
     return gSensorFault ? "FAULT" : (gSensorReady ? "NORMAL" : "INIT");
+}
+
+/** @brief Queue a mode change without accessing ADS registers from the console task. */
+bool transportSetBreath(bool enabled) {
+    return gBreathRequest != NULL && gSensorReady && !gSensorFault &&
+           xQueueOverwrite(gBreathRequest, &enabled) == pdTRUE;
+}
+
+bool transportBreathEnabled(void) {
+    return gBreathEnabled;
 }
 
 /** @brief Copy the current DHCP address for diagnostics. */
@@ -326,12 +338,14 @@ static void transportDiscoveryTask(void *argument) {
 /** @brief Preserve the STM32 converter setup and one-second acquisition report. */
 static void transportAcquisitionTask(void *argument) {
     stAds1292rConfig lConfig;
+    stAds1292rConfig lPreviousConfig;
     stAds1292rSample lSample;
     stAds1292rStats lStats;
     uint32_t lLastReport;
     uint32_t lLastCount = 0U;
     uint32_t lLastError = 0U;
     int8_t lStatus;
+    bool lBreathRequest;
     (void)argument;
     gAcquisitionTask = xTaskGetCurrentTaskHandle();
     (void)ads1292rLoadDefaultConfig(&lConfig);
@@ -347,9 +361,48 @@ static void transportAcquisitionTask(void *argument) {
         return;
     }
     gSensorReady = true;
-    LOG_I("ads1292r", "500 SPS gain=6 ECG=CH2 RLD_SENS=0x%02X verified", (unsigned)lConfig.rldSense);
+    LOG_I("ads1292r", "500 SPS ECG=CH2 RLD_SENS=0x%02X breath=off verified", (unsigned)lConfig.rldSense);
     lLastReport = systemGetTickMs();
     for (;;) {
+        if (xQueueReceive(gBreathRequest, &lBreathRequest, 0) == pdTRUE &&
+            lBreathRequest != gBreathEnabled) {
+            /* Reconfigure only here, with conversions stopped and register readback checked. */
+            lPreviousConfig = lConfig;
+            lStatus = ads1292rStop();
+            if (lStatus == ADS1292R_OK) {
+                lConfig.respiration = lBreathRequest;
+                lConfig.respirationPhase = lBreathRequest ? 0x0DU : 0U;
+                lConfig.gain[0] = lBreathRequest ? ADS1292R_GAIN_2 : ADS1292R_GAIN_6;
+                lStatus = ads1292rInit(&lConfig);
+            }
+            if (lStatus == ADS1292R_OK) {
+                (void)ulTaskNotifyTake(pdTRUE, 0);
+                lStatus = ads1292rStart();
+            }
+            if (lStatus != ADS1292R_OK) {
+                LOG_E("ads1292r", "breath change failed status=%d; restoring previous config", (int)lStatus);
+                lConfig = lPreviousConfig;
+                if (ads1292rInit(&lConfig) != ADS1292R_OK || ads1292rStart() != ADS1292R_OK) {
+                    gSensorFault = true;
+                    gSensorReady = false;
+                    LOG_E("ads1292r", "config recovery failed");
+                    vTaskDelete(NULL);
+                    return;
+                }
+                (void)ulTaskNotifyTake(pdTRUE, 0);
+                gSampleCount = 0U;
+                lLastCount = 0U;
+                lLastReport = systemGetTickMs();
+                continue;
+            }
+            gSampleCount = 0U; /* Do not mix pre-change and post-change samples in one frame. */
+            gBreathEnabled = lBreathRequest;
+            lLastCount = 0U;
+            lLastReport = systemGetTickMs();
+            LOG_I("ads1292r", "breath=%s CH1 gain=%u RLD_SENS=0x%02X verified",
+                  lBreathRequest ? "on" : "off", lBreathRequest ? 2U : 6U,
+                  (unsigned)lConfig.rldSense);
+        }
         if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000)) != 0U) {
             lStatus = ads1292rReadSample(&lSample);
             if (lStatus == ADS1292R_OK) {
@@ -378,7 +431,8 @@ static void transportAcquisitionTask(void *argument) {
 /** @brief Start the station and the three independent network services. */
 bool transportStart(void) {
     gFrameQueue = xQueueCreate(HEART_FRAME_QUEUE_LENGTH, sizeof(stHeartFrame));
-    if (gFrameQueue == NULL || !transportWifiStart()) {
+    gBreathRequest = xQueueCreate(1U, sizeof(bool));
+    if (gFrameQueue == NULL || gBreathRequest == NULL || !transportWifiStart()) {
         return false;
     }
     return xTaskCreatePinnedToCore(transportDataTask, "heart_data", 4096, NULL, 5, NULL, 1) == pdPASS &&

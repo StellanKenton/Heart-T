@@ -51,7 +51,7 @@ int8_t ads1292rLoadDefaultConfig(stAds1292rConfig *config) {
         .gain = {ADS1292R_GAIN_6, ADS1292R_GAIN_6},
         .input = {ADS1292R_INPUT_NORMAL, ADS1292R_INPUT_NORMAL},
         .respiration = false, .respirationPhase = 0U,
-        .leadOff = false, .rldSense = 0U
+        .leadOff = false, .rldSense = 0xECU
     };
     return ADS1292R_OK;
 }

@@ -29,6 +29,8 @@ void transportQueueSample(const int32_t channel[2]);
 uint32_t transportDroppedSamples(void);
 bool transportWifiConnected(void);
 const char *transportSensorMode(void);
+bool transportSetBreath(bool enabled);
+bool transportBreathEnabled(void);
 void transportGetIp(char *buffer, uint32_t size);
 void transportFlushLogs(void);
 /* Called from the GPIO DRDY interrupt after the converter edge counter updates. */

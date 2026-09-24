@@ -72,7 +72,7 @@ typedef struct stAds1292rConfig {
     bool respiration;
     uint8_t respirationPhase; /* 0..15 in 11.25-degree steps, 32 kHz modulation. */
     bool leadOff;
-    uint8_t rldSense; /* RLD_SENS register; default zero leaves RLD powered down. */
+    uint8_t rldSense; /* RLD_SENS register; default 0xEC enables CH2-based RLD. */
 } stAds1292rConfig;
 
 typedef struct stAds1292rSample {

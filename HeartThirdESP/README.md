@@ -1,6 +1,6 @@
 # HeartThirdESP
 
-ESP-IDF 5.5 的 ESP32-S3 下位机工程。保留 `Heart-T` 的 ADS1292R 默认配置、500 SPS 双通道采集、5 对采样一帧的 33 字节协议和 `help`、`status`、`time`、`version`、`reboot` 命令；将 STM32 HAL/SPI2、USB CDC、SEGGER RTT 分别替换为 ESP32-S3 GPIO/SPI2、Wi-Fi TCP 数据服务、TCP 日志命令服务。上位机滤波、显示及 CSV 工具位于 `HeartThirdCore`。
+ESP-IDF 5.5 的 ESP32-S3 下位机工程。使用 ADS1292R 以 500 SPS 双通道采集，保留 5 对采样一帧的 33 字节协议及原控制台命令，并增加 `breath on|off`；将 STM32 HAL/SPI2、USB CDC、SEGGER RTT 分别替换为 ESP32-S3 GPIO/SPI2、Wi-Fi TCP 数据服务、TCP 日志命令服务。上位机滤波、显示及 CSV 工具位于 `HeartThirdCore`。
 
 ## 接线
 
@@ -19,7 +19,7 @@ ESP-IDF 5.5 的 ESP32-S3 下位机工程。保留 `Heart-T` 的 ADS1292R 默认�
 | DVDD / VCC | 3V3（仅当模块支持 3.3 V） | ESP GPIO 只能接 3.3 V 逻辑；模块需要更高供电时必须做电平转换和单独供电 |
 | CLKSEL | 3V3 | 选择 ADS 内部 512 kHz 时钟；如模块已有上拉，不重复硬连 |
 
-电极 RA/LA/RL 仍接 ADS 模块原电极端，**不接 ESP GPIO**。默认 `RLD_SENS=0x00`，与原固件一致；RL 接口的具体行为由模块模拟电路决定。GPIO10–17 避开了 ESP32-S3 的启动配置脚、内部 Flash/PSRAM 常用脚及 USB 脚；若使用其他 S3 开发板，应先核对其板载外设是否占用这些引脚。参见[乐鑫 DevKitC-1 排针表](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html)和[GPIO 说明](https://docs.espressif.com/projects/esp-idf/en/v5.0/esp32s3/api-reference/peripherals/gpio.html)。
+电极 RA/LA/RL 仍接 ADS 模块原电极端，**不接 ESP GPIO**。默认 `RLD_SENS=0xEC`，参考 STM32-V2.0：开启 RLD、取 CH2 正负输入作反馈，并选 fMOD/4 PGA 斩波；RL 接口的具体行为由模块模拟电路决定。先前在另一块 STM32 板上测得该设置可能显著增加 50 Hz 干扰，因此本 ESP 板必须重新实测。GPIO10–17 避开了 ESP32-S3 的启动配置脚、内部 Flash/PSRAM 常用脚及 USB 脚；若使用其他 S3 开发板，应先核对其板载外设是否占用这些引脚。参见[乐鑫 DevKitC-1 排针表](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html)和[GPIO 说明](https://docs.espressif.com/projects/esp-idf/en/v5.0/esp32s3/api-reference/peripherals/gpio.html)。
 
 ## 网络接口
 
@@ -32,6 +32,10 @@ ESP-IDF 5.5 的 ESP32-S3 下位机工程。保留 `Heart-T` 的 ADS1292R 默认�
 | 45672 | UDP | 局域网发现：收到 `HEARTTHIRD_DISCOVER` 后回复 `HEARTTHIRD_ESP32S3` |
 
 每个 TCP 端口同时服务一个客户端。网络发送与采集分任务，数据发送队列最多 32 帧；未连接或队列已满的样本会丢弃，并计入 `tcp_dropped`。`missed` 是 ADS DRDY 边沿间隔估计，两个计数含义不同。TCP 是字节流，接收端仍须按帧头和 CRC 解析，不应假设一次 `recv` 恰好返回 33 字节。日志队列最多 32 行，满时丢弃最旧日志；TCP 控制台重连后可使用 `status` 查询采集状态。
+
+## 呼吸采集
+
+上电默认 `breath off`：RLD 开启、CH1/CH2 增益均为 6，呼吸载波关闭。向 TCP console 发送 `breath on`（末尾换行），采集任务会停止转换，校验 ADS1292R 身份和寄存器配置，再开启 CH1 呼吸调制/解调：CH1 增益 2、`RESP1=0xF6`（参考工程相位 0x0D）、`RESP2=0x03`（内部参考、32 kHz 载波）。CH1 原始采样是未经滤波的呼吸测量通道，CH2 仍为心电；33 字节数据格式不变。发送 `breath off` 恢复 CH1 增益 6 和关闭调制。`status` 查看实际启用状态，切换成功会输出 `verified` 日志；切换期间约有 1.2 秒采样暂停，采样计数重新开始。呼吸波是否可辨仍需在电极和模拟前端上实测。
 
 ## 工程与构建
 
